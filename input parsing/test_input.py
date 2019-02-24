@@ -1,9 +1,13 @@
 import pytest
 
 import ebird_taxonomy_parse as etp
+import banding_code_parse as bcp
 
 fn = "eBird_Taxonomy_v2018_14Aug2018.csv"
 common_name_mappings = etp.parse_raw_ebird_to_4lc(fn)
+
+dbf_filename = "LIST18.DBF"
+banding_mapping = bcp.common_name_to_banding(dbf_filename)
 
 
 @pytest.mark.parametrize("name, codes",
@@ -44,3 +48,29 @@ common_name_mappings = etp.parse_raw_ebird_to_4lc(fn)
 )
 def test_ebird(name, codes):
     assert set(codes).issubset(common_name_mappings[name])
+
+
+@pytest.mark.parametrize("name, code",
+    [
+        ("Barn Owl", "BANO"),
+        ("Barred Owl", "BADO"),
+        ("Bank Swallow", "BANS"),
+        ("Barn Swallow", "BARS"),
+        ("Eurasian Collared-Dove", "EUCD"),
+    ],
+)
+def test_banding_included(name, code):
+    assert banding_mapping[name] == code
+
+
+@pytest.mark.parametrize("name",
+    [
+        ("Western X Mountain Bluebird Hybrid"),
+        ("Slate-colored Junco"),
+        ("Unidentified Swallow"),
+        ("Cackling/Canada Goose"),
+        ("Unidentified Bird"),
+    ],
+)
+def test_banding_excluded(name):
+    assert name not in banding_mapping.keys()

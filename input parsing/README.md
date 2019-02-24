@@ -1,6 +1,6 @@
 # Input Parsing Scripts
 
- - `ebird_taxonomy_parse.py`: For parsing the eBird taxonomy CSV obtained from <http://www.birds.cornell.edu/clementschecklist/download/ into common/scientific> names and their 4-letter-codes to allow mapping between 4-letter codes and the common, not scientific, name. Outputs mappings in json format to `common.json`, which includes the commone name to all 4-letter-codes including the scientific/binomial mapping.\
+ - `ebird_taxonomy_parse.py`: For parsing the eBird taxonomy CSV obtained from <http://www.birds.cornell.edu/clementschecklist/download/> into common/scientific names and their 4-letter-codes to allow mapping between 4-letter codes and the common, not scientific, name. Outputs mappings in json format to `common.json`, which includes the common name to all 4-letter-codes including the scientific/binomial mapping.\
  \
  Currently tested with the 2018 eBird taxonomy (not Clements or combined). \
  \
@@ -16,4 +16,8 @@
     - For bird names that are over 4 words long when split on hyphens, but 4 or fewer words long when not split on hyphens using the alternative hyphen splitting rule, both forms are returned.
     - In addition to the previous, both rules are also applied with the alternate rule for >4 word names with obvious conjunctions omitted (of, and, the).
     - Does not represent alternate common names as these are not included in the eBird taxonomy and it is unknown which are supported.
- - `banding_code_parse.py`: Parses the banding codes from The Institute for Bird Populations.       
+ - `banding_code_parse.py`: Parses the banding codes from The Institute for Bird Populations downloaded from <http://www.birdpop.org/docs/misc/List18.zip>.\
+    Writes output to `banding.json` with a mapping from the common name to 4-letter-codes.
+ ## Important Notes
+ - eBird's common names and the common names used in the banding codes are not always the same name. A significant number of birds do not have banding codes.
+ - The banding codes exclude non-species, like hybrids, these are excluded from output.
