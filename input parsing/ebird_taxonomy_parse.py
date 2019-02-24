@@ -1,5 +1,6 @@
 import csv
 import re
+import json
 
 
 def open_raw_csv_ebird(csv_path):
@@ -24,9 +25,9 @@ def open_raw_csv_ebird(csv_path):
     return output
 
 
-def parse_raw_ebird_to_4lc_common(csv_path):
+def parse_raw_ebird_to_4lc(csv_path):
     """
-    Takes the raw eBird axonomy csv (not Clements or combined eBird/Clements) and returns a dictionary of eBird 4 letter codes and common names.
+    Takes the raw eBird axonomy csv (not Clements or combined eBird/Clements) and returns a dictionary of eBird 4 letter codes and either common or scientific names.
     Rules: https://help.ebird.org/customer/en/portal/articles/2667298-how-quick-entry-codes-are-created
     Note that there are collisions in 4 letter codes. This code does not attempt to disambiguate them.
     Args:
@@ -38,13 +39,19 @@ def parse_raw_ebird_to_4lc_common(csv_path):
     raw_input = open_raw_csv_ebird(csv_path)
     for line in raw_input:
         if line['category'] == "species":
-            common_name = line['primary_com_name']
-            four_letter_code = common_name_to_4lc(common_name)
-            common_name_map[common_name] = four_letter_code
+            name = line["primary_com_name"]
+            scientific_name = line["sci_name"]
+            common_four_letter_code = name_to_4lc(name)
+            scienfitic_four_letter_code = name_to_4lc(scientific_name)
+            common_name_map[name] = common_four_letter_code + scienfitic_four_letter_code
+
+    # Stupid special case for two of the Yellow-rumped Warblers.
+    common_name_map["Yellow-rumped Warbler (Myrtle)"] = ["YRWA", "MYWA"]
+    common_name_map["Yellow-rumped Warbler (Audubon's)"] = ["YRWA", "AUWA"]
     return common_name_map
 
 
-def common_name_to_4lc(name):
+def name_to_4lc(name):
     """
     Converts a given name to a 4-letter code.
     Uses rules at: Rules: https://help.ebird.org/customer/en/portal/articles/2667298-how-quick-entry-codes-are-created
@@ -56,24 +63,23 @@ def common_name_to_4lc(name):
     Returns:
         A list of strings of 4 letters representing the ebird short code. Includes the base code as well as eBird's alternatives.
     """
-    res = []
+    res = set()
     skipped_words = ["of", "and", "the"]
 
     # Normal handling of always splitting on a hyphen.
-    all_splits = set()
-    normal_split = re.split(r' |-', name)
-    all_splits.add(tuple(normal_split))
-    # Don't split if the last two words are hyphenated.
-    hyphen_split = re.findall(r"((?:(?:[^\s-]+-)+[^\s-]+$)|(?:[^\s-]+))", name)
-    all_splits.add(tuple(hyphen_split))
-    for split_name in all_splits:
-        res += [words_to_code(split_name)]
-        # Find the alternative for names longer than 4 words.
-        if len(split_name) > 4:
-            new_name = tuple(e for e in split_name if e not in skipped_words)
-            res += [words_to_code(new_name)]
-    return res
-
+    split_name = tuple(re.split(r'[ -]', name))
+    res.add(words_to_code(split_name))
+    # Find the alternative for names longer than 4 words.
+    if len(split_name) > 4:
+        new_name = tuple(e for e in split_name if e not in skipped_words)
+        res.add(words_to_code(new_name))
+    # Handle the hyphenated split, which has very different rules.
+    space_split = name.split(' ')
+    if space_split[-1].count('-') == 1:
+        last_hyphen = space_split[-1].split('-')
+        hyphen_alt = space_split[0][0 : 2] + last_hyphen[0][0] + last_hyphen[1][0]
+        res.add(hyphen_alt.upper())
+    return list(res)
 
 
 def words_to_code(split_name):
@@ -98,7 +104,7 @@ def words_to_code(split_name):
 
 if __name__ == "__main__":
     fn = "eBird_Taxonomy_v2018_14Aug2018.csv"
-    name_mappings = parse_raw_ebird_to_4lc_common(fn)
+    common_name_mappings = parse_raw_ebird_to_4lc(fn)
 
-
-
+    with open('common.json', 'w') as f:
+        json.dump(common_name_mappings, f)
