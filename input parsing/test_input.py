@@ -3,7 +3,7 @@ import pytest
 import ebird_taxonomy_parse as etp
 import banding_code_parse as bcp
 
-fn = "eBird_Taxonomy_v2018_14Aug2018.csv"
+fn = "eBird_Taxonomy_v2019.csv"
 common_name_mappings = etp.parse_raw_ebird_to_4lc(fn)
 
 dbf_filename = "LIST18.DBF"

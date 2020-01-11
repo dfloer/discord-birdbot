@@ -103,7 +103,7 @@ def words_to_code(split_name):
 
 
 if __name__ == "__main__":
-    fn = "eBird_Taxonomy_v2018_14Aug2018.csv"
+    fn = "eBird_Taxonomy_v2019.csv"
     common_name_mappings = parse_raw_ebird_to_4lc(fn)
 
     with open('common.json', 'w') as f:
