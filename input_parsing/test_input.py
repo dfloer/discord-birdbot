@@ -4,7 +4,9 @@ import ebird_taxonomy_parse as etp
 import banding_code_parse as bcp
 
 fn = "eBird_Taxonomy_v2019.csv"
-common_name_mappings = etp.parse_raw_ebird_to_4lc(fn)
+common, scientific, code, short = etp.taxonomy_parse(fn)
+common_name_mappings = {k: v.short_codes for k, v in common.items()}
+scientific_name_mappings = {k: v.short_codes for k, v in scientific.items()}
 
 dbf_filename = "LIST18.DBF"
 banding_mapping = bcp.common_name_to_banding(dbf_filename)
@@ -47,7 +49,7 @@ banding_mapping = bcp.common_name_to_banding(dbf_filename)
     ],
 )
 def test_ebird(name, codes):
-    assert set(codes).issubset(common_name_mappings[name])
+    assert set(codes) == set(common_name_mappings[name])
 
 
 @pytest.mark.parametrize("name, code",
@@ -74,3 +76,28 @@ def test_banding_included(name, code):
 )
 def test_banding_excluded(name):
     assert name not in banding_mapping.keys()
+
+# And now the same test for scientific names.
+@pytest.mark.parametrize("scientific_name, all_codes",
+    [
+        ("Setophaga coronata", ["YRWA", "MYWA", "AUWA", "SECO"]),
+        ("Mareca strepera", ["GADW", "MAST"]),
+        ("Tringa semipalmata", ["WILL", "TRSE"]),
+        ("Tringa erythropus", ["SPRE", "TRER"]),
+        ("Passer domesticus", ["HOSP", "PADO"]),
+        ("Sterna hirundo", ["COTE", "STHI"]),
+        ("Agelaius phoeniceus", ["RWBL", "AGPH"]),
+        ("Stercorarius maccormicki", ["SPSK", "STMA"]),
+        ("Stercorarius longicaudus", ["LTJA", "STLO"]),
+        ("Streptopelia decaocto", ["ECDO", "EUCD", "STDE"]),
+        ("Calocitta colliei", ["BTMJ", "BLMJ", "CACO"]),
+        ("Fregetta tropica", ["BBSP", "BLSP", "FRTR"]),
+        ("Setophaga virens", ["BTGW", "SEVI"]),
+        ("Knipolegus aterrimus", ["WWBT", "WHBT", "KNAT"]),
+        ("Tockus deckeni", ["VDDH", "TODE"]),
+        ("Bycanistes subcylindricus", ["BAWC", "BWCH", "BYSU"]),
+        ("Pteridophora alberti", ["KOSB", "KSBP", "PTAL"]),
+    ],
+)
+def test_ebird(scientific_name, all_codes):
+    assert set(all_codes) == set(scientific_name_mappings[scientific_name])
