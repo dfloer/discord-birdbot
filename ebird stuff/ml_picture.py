@@ -6,12 +6,12 @@ def ml_get_image_url(asset_id, size=1200):
     """
     Gets the image from ML.
     Arguments:
-        asset_id {int} -- Asset ID from ML.
-        size {int} -- Width of the image. Not all sizes are valid.
+        asset_id (int): Asset ID from ML.
+        size (int): Width of the image. Not all sizes are valid.
     Returns:
         The image's url.
     """
-    image_base_url = "https://download.ams.birds.cornell.edu/api/v1/asset/"
+    image_base_url = "https://download.ams.birds.cornell.edu/api/v1/asset"
     return f"{image_base_url}/{asset_id}/{size}"
 
 
@@ -49,4 +49,6 @@ def ml_get_images(taxon_code, sort_type="quality"):
 if __name__ == "__main__":
     test_taxon = "bushti"
     images = ml_get_images(test_taxon)
-    print(images)
+    image_urls = [ml_get_image_url(x) for x in images]
+    for x in image_urls:
+        print(x)
