@@ -1,6 +1,21 @@
 import csv
 import re
 import json
+from collections import defaultdict
+
+
+class Taxonomy:
+    def __init__(self, common_name, scientific_name, species_code, short_codes):
+        self.common_name = common_name
+        self.scientific_name = scientific_name
+        self.species_code = species_code
+        self.short_codes = short_codes
+
+    def __str__(self):
+        return f"{self.common_name}, {self.scientific_name}, {self.species_code}, {self.short_codes}"
+
+    def __repr__(self):
+        return str({"common_name": self.common_name, "scientific_name": self.scientific_name, "species_code": self.species_code, "short_codes": self.short_codes})
 
 
 def open_raw_csv_ebird(csv_path):
@@ -23,32 +38,6 @@ def open_raw_csv_ebird(csv_path):
             e[keys[idx]] = field
         output += [e]
     return output
-
-
-def parse_raw_ebird_to_4lc(csv_path):
-    """
-    Takes the raw eBird axonomy csv (not Clements or combined eBird/Clements) and returns a dictionary of eBird 4 letter codes and either common or scientific names.
-    Rules: https://help.ebird.org/customer/en/portal/articles/2667298-how-quick-entry-codes-are-created
-    Note that there are collisions in 4 letter codes. This code does not attempt to disambiguate them.
-    Args:
-        csv_path (str): Path to the file to open.
-    Returns:
-        A dictionary, with the key being the common name, and the value being the 4 letter code.
-    """
-    common_name_map = {}
-    raw_input = open_raw_csv_ebird(csv_path)
-    for line in raw_input:
-        if line['category'] == "species":
-            name = line["primary_com_name"]
-            scientific_name = line["sci_name"]
-            common_four_letter_code = name_to_4lc(name)
-            scienfitic_four_letter_code = name_to_4lc(scientific_name)
-            common_name_map[name] = common_four_letter_code + scienfitic_four_letter_code
-
-    # Stupid special case for two of the Yellow-rumped Warblers.
-    common_name_map["Yellow-rumped Warbler (Myrtle)"] = ["YRWA", "MYWA"]
-    common_name_map["Yellow-rumped Warbler (Audubon's)"] = ["YRWA", "AUWA"]
-    return common_name_map
 
 
 def name_to_4lc(name):
@@ -102,9 +91,53 @@ def words_to_code(split_name):
     return res
 
 
+def taxonomy_parse(csv_path):
+    """
+    Parses the taxonomy csv into four-letter codes (both scientific, banding and common name),
+        as well as eBird's unique codes and scientific + common names.
+    Takes the raw eBird axonomy csv (not Clements or combined eBird/Clements).
+    Note that there are collisions in 4 letter codes. This code does not attempt to disambiguate them.
+    Args:
+        csv_path (str): Path to the file to open.
+    Returns:
+        4 dictionaries:
+        1. key: each 4 letter code.
+        2. key: ebird unique codes.
+        3. key: common name.
+        4. key:scientific name.
+        With the values being an object containing the values associated with that key.
+        Why do it this way? To make it easy to look things up by any of the 4 possible key types.
+    """
+    common_map = {}
+    scientific_map = {}
+    code_map = {}
+    short_map = defaultdict(list)  # So that we can at least know of collisions rather than silently dropping them.
+
+    raw_input = open_raw_csv_ebird(csv_path)
+    for line in raw_input:
+        if line['category'] == "species":
+            common_name = line["primary_com_name"]
+            scientific_name = line["sci_name"]
+            common_four_letter_code = name_to_4lc(common_name)
+            scientific_four_letter_code = name_to_4lc(scientific_name)
+            species_code = line["species_code"]
+            short_codes = common_four_letter_code + scientific_four_letter_code
+            taxon = Taxonomy(common_name, scientific_name, species_code, short_codes)
+            common_map[common_name] = taxon
+            scientific_map[scientific_name] = taxon
+            code_map[species_code] = taxon
+            if common_name == "Yellow-rumped Warbler":
+                short_codes += ["MYWA", "AUWA"]
+            for x in short_codes:
+                short_map[x] += [taxon]
+    return common_map, scientific_map, code_map, short_map
+
+
 if __name__ == "__main__":
     fn = "eBird_Taxonomy_v2019.csv"
-    common_name_mappings = parse_raw_ebird_to_4lc(fn)
+    common, scientific, code, short = taxonomy_parse(fn)
 
-    with open('common.json', 'w') as f:
+    # Dump all the data with common names as the keys.
+    with open('all_common.json', 'w') as f:
+        common_name_mappings = {k: repr(v) for k, v in common.items()}
         json.dump(common_name_mappings, f)
