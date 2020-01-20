@@ -1,5 +1,6 @@
 import sys
 sys.path.append("../")
+import input_parsing.ebird_taxonomy_parse as etp
 
 from fuzzywuzzy import fuzz, process
 import re
@@ -75,3 +76,27 @@ def normalize_to_ascii(s):
         str: normalized string in ascii, no matter what.
     """
     return ud.normalize("NFKD", s).encode("ascii", "ignore").decode()
+
+
+def search(search_term, common_names, scientific_names, short_codes):
+    """
+    Searches a given text string for possible matches in common names, scientific names and 4-letter-codes.
+    All taxonomies from from ebird_taxonomy_parse.taxonomy_parse().
+    Args:
+        search_term (str): String to search for
+        common_names (dict): Common name taxonomy to search.
+        scientific_names (dict): Scientific name taxonomy to search.
+        short_codes (dict): 4-letter code taxonomy to search.
+    Returns:
+        dict: with 0 to 3 entries, one each of matches on 4-letter codes, common names and scientific names. Values are the eBird species code.
+    """
+    res = {}
+    res["codes"] = []
+    if len(search_term) <= 4:
+        try:
+            res["codes"] = [x.species_code for x in short_codes[search_term.upper()]]
+        except KeyError:
+            pass
+    res["common"] = [common_names[x].species_code for x in word_start_search(search_term, common_names)]
+    res["scientific"] = [scientific_names[x].species_code for x in word_start_search(search_term, scientific_names)]
+    return res

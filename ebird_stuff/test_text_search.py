@@ -40,7 +40,8 @@ def test_exact_match(name, results):
         ("Yellow rumped Warbler", ["Yellow-rumped Warbler"]),
         ("andean cock of the rock", ["Andean Cock-of-the-rock"]),
         ("omao", ["Omao"]),
-        ("king of saxony bird of paradise", ["King-of-Saxony Bird-of-Paradise"])
+        ("king of saxony bird of paradise", ["King-of-Saxony Bird-of-Paradise"]),
+        ("Barn-Swallow", ["Barn Swallow"]),
     ],
 )
 def test_close_match(name, results):
@@ -91,3 +92,29 @@ def test_no_results(name, results):
 )
 def test_scientific_names(name, results):
     assert text_search.word_start_search(name, scientific) == results
+
+# Test the combined taxonomy search.
+@pytest.mark.parametrize("search_term, results",
+    [
+        ("cana", {
+            'codes': ['swanig1'],
+            'common': ['cangoo', 'canoys1', 'crbcan1', 'bercan1', 'shbcan1', 'cipcan1', 'hudcan1', 'auscan1', 'lifcan1', 'mascan1', 'juncan1', 'sctcan1', 'stbcan1', 'puncan1', 'sttcan1', 'corcan1', 'shbcan2', 'cancan1', 'rufcan1', 'maqcan1', 'dutcan1', 'patcan2', 'stecan1', 'caccan1', 'gryjay', 'gyhcaf1', 'citcaf1', 'caichi1', 'blucha3', 'yefcan', 'blfcan1', 'papcan1', 'forcan1', 'bltcan1', 'whbcan1', 'norgrc1', 'sougrc1', 'brican1', 'yelcan1', 'whtcan1', 'procan1', 'comcan', 'yeccan1', 'capcan1', 'bkhcan2', 'canwar'],
+            'scientific': ['empgoo', 'cangoo', 'soashe1', 'sprgro', 'sancra', 'blcant4', 'gryjay', 'caichi1', 'rebnut', 'comcan', 'canwar', 'yeggro1']
+        }),
+        ("cago", {'codes': ['cacgoo1', 'cangoo', 'tancoc1'], 'common': [], 'scientific': []}),
+        ("abba", {'codes': ['abbbab1'], 'common': [], 'scientific': ['yewtan1']}),
+        ("rhea", {'codes': [], 'common': ['grerhe1', 'lesrhe2'], 'scientific': ['grerhe1', 'lesrhe2']}),
+        ("acer", {'codes': ['retspa1', 'runspa1'], 'common': [], 'scientific': ['runhor1', 'guityr1']}),
+        ("toco", {'codes': ['colkin17', 'refpar1'], 'common': ['toctou1'], 'scientific': ['toctou1']}),
+        ("fennec fox", {'codes': [], 'common': [], 'scientific': []}),
+        ("chickadee", {'codes': [], 'common': ['carchi', 'bkcchi', 'mouchi', 'mexchi', 'chbchi', 'borchi2', 'gyhchi'], 'scientific': []}),
+        ("bushtit", {'codes': [], 'common': ['bushti'], 'scientific': []}),
+        ("King-of-Saxony Bird-of-Paradise", {'codes': [], 'common': ['kospar1'], 'scientific': []}),
+        ("mao", {'codes': ['mao1'], 'common': ['mao1'], 'scientific': ['nezstp1']}),
+        ("Omao", {'codes': ['omao'], 'common': ['omao'], 'scientific': []}),
+        ("Rüppell", {'codes': [], 'common': ['ruebus1', 'ruegri1', 'ruepar1', 'ruewar1', 'ruegls1', 'rurcha1', 'ruecha1', 'ruewea1'], 'scientific': ['whrshr1']}),
+        ("Barn-Swallow", {'codes': [], 'common': ['barswa'], 'scientific': []}),
+    ],
+)
+def test_combined_search(search_term, results):
+    assert text_search.search(search_term, common, scientific, short) == results
