@@ -75,3 +75,17 @@ def test_start_only(name, results):
 )
 def test_no_results(name, results):
     assert text_search.word_start_search(name, common) == results
+
+# Test some scientific name lookups.
+@pytest.mark.parametrize("name, results",
+    [
+        ("Psaltriparus minimus", ["Psaltriparus minimus"]),
+        ("setophaga coronata", ["Setophaga coronata"]),
+        ("icteri", ['Hippolais icterina', 'Phyllastrephus icterinus', 'Mycerobas icterioides', 'Icteria virens']),
+        ("melospiza", ['Melospiza melodia', 'Melospiza lincolnii', 'Melospiza georgiana']),
+        ("setophaga p", ['Setophaga plumbea', 'Setophaga pharetra', 'Setophaga pitiayumi', 'Setophaga petechia', 'Setophaga pensylvanica', 'Setophaga palmarum', 'Setophaga pityophila', 'Setophaga pinus']),
+        ("Vulpes zerda", []),
+    ],
+)
+def test_scientific_names(name, results):
+    assert text_search.word_start_search(name, scientific) == results
