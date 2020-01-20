@@ -85,6 +85,8 @@ def test_no_results(name, results):
         ("melospiza", ['Melospiza melodia', 'Melospiza lincolnii', 'Melospiza georgiana']),
         ("setophaga p", ['Setophaga plumbea', 'Setophaga pharetra', 'Setophaga pitiayumi', 'Setophaga petechia', 'Setophaga pensylvanica', 'Setophaga palmarum', 'Setophaga pityophila', 'Setophaga pinus']),
         ("Vulpes zerda", []),
+        ("Bushtit", []),
+        ("Canadensis", ['Branta canadensis', 'Falcipennis canadensis', 'Antigone canadensis', 'Sakesphorus canadensis', 'Perisoreus canadensis', 'Sitta canadensis', 'Cardellina canadensis', 'Caryothraustes canadensis']),
     ],
 )
 def test_scientific_names(name, results):
