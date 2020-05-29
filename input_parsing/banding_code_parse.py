@@ -1,40 +1,30 @@
-from dbfread import DBF
+import csv
 import json
 
-
-def load_dbf(filename):
+def common_name_to_banding(filename, include_non_sp=False):
     """
-    Opens and returns s list representation of a dbf file.
+    Converts the banding code CSV file to a dictionary.
+    Banding codes as per The Institute for Bird Populations downloaded from: http://www.birdpop.org/docs/misc/IBPAOU.zip
     Args:
-        filename (str): dbf file to open.
+        filename (str): csv file to open.
+        include_non_sp (bool, optional): Whether ot not to include non-species taxa. Defaults to False.
     Returns:
-        List representation of the alpha codes zdbf file.
-    """
-    return DBF(filename, load=True)
-
-
-def common_name_to_banding(filename):
-    """
-    Converts the banding code database file to a dictionary.
-    Banding codes as per The Institute for Bird Populations downloaded from: http://www.birdpop.org/docs/misc/List18.zip
-    Args:
-        filename (str): dbf file to open.
-    Returns:
-        A dictionary of {"common name": "4 letter code"} pairs.
+        dict: A dictionary of {"common name": "4 letter code"} pairs.
     """
     result = {}
-    dbf_table = load_dbf(filename)
-    for x in dbf_table:
-        if x["SP"]:
-            continue
-        common_name = x["COMMONNAME"]
-        banding_code = x["SPEC"]
-        result[common_name] = banding_code
+    with open(filename, 'r') as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            if row["SP"] and not include_non_sp:
+                continue
+            common_name = row["COMMONNAME"]
+            banding_code = row["SPEC"]
+            result[common_name] = banding_code
     return result
 
 
 if __name__ == "__main__":
-    dbf_filename = "LIST18.DBF"
-    banding_mapping = common_name_to_banding(dbf_filename)
+    csv_filename = "list19p.csv"
+    banding_mapping = common_name_to_banding(csv_filename)
     with open('banding.json', 'w') as f:
         json.dump(banding_mapping, f)

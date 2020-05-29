@@ -8,8 +8,9 @@ common, scientific, code, short = etp.taxonomy_parse(fn)
 common_name_mappings = {k: v.short_codes for k, v in common.items()}
 scientific_name_mappings = {k: v.short_codes for k, v in scientific.items()}
 
-dbf_filename = "LIST18.DBF"
-banding_mapping = bcp.common_name_to_banding(dbf_filename)
+csv_filename = "list19p.csv"
+banding_mapping = bcp.common_name_to_banding(csv_filename)
+banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
 
 
 @pytest.mark.parametrize("name, codes",
@@ -76,6 +77,18 @@ def test_banding_included(name, code):
 )
 def test_banding_excluded(name):
     assert name not in banding_mapping.keys()
+
+@pytest.mark.parametrize("name",
+    [
+        ("Western X Mountain Bluebird Hybrid"),
+        ("Slate-colored Junco"),
+        ("Unidentified Swallow"),
+        ("Cackling/Canada Goose"),
+        ("Unidentified Bird"),
+    ],
+)
+def test_banding_all(name):
+    assert name in banding_mapping_all.keys()
 
 # And now the same test for scientific names.
 @pytest.mark.parametrize("scientific_name, all_codes",
