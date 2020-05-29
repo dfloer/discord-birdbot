@@ -53,7 +53,6 @@ def word_start_search(search_term, search_set):
     regex = f"(^|[ -]){search_terms[0]}"
     regex += ''.join([f".*[ -]{x}" for x in search_terms[1 : ]])
     r = re.compile(regex)
-    print(r)
 
     for x in search_set.keys():
         name = x

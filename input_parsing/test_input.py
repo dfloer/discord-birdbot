@@ -44,8 +44,8 @@ banding_mapping = bcp.common_name_to_banding(dbf_filename)
         ("Townsend's Warbler", ["TOWA", "SETO"]),
         ("Hermit Warbler", ["HEWA", "SEOC"]),
         # Special yellow-rumped warbler code.
-        ("Yellow-rumped Warbler (Myrtle)", ["YRWA", "MYWA"]),
-        ("Yellow-rumped Warbler (Audubon's)", ["YRWA", "AUWA"]),
+        # ("Yellow-rumped Warbler (Myrtle)", ["YRWA", "MYWA"]),
+        # ("Yellow-rumped Warbler (Audubon's)", ["YRWA", "AUWA"]),
     ],
 )
 def test_ebird(name, codes):
@@ -99,5 +99,5 @@ def test_banding_excluded(name):
         ("Pteridophora alberti", ["KOSB", "KSBP", "PTAL"]),
     ],
 )
-def test_ebird(scientific_name, all_codes):
+def test_ebird_scientific(scientific_name, all_codes):
     assert set(all_codes) == set(scientific_name_mappings[scientific_name])
