@@ -7,7 +7,9 @@ def ml_get_image_url(asset_id, size=1200):
     Gets the image from ML.
     Arguments:
         asset_id (int): Asset ID from ML.
-        size (int): Width of the image. Not all sizes are valid.
+        size (int, str): Width of the image. Not all sizes are valid.
+            Int sized observed working: 640, 900, 1200, 1800, 2400.
+            Can also be string sizes of "medium" = 640, "large" = 1200 and "original".
     Returns:
         The image's url.
     """
