@@ -7,7 +7,7 @@ def common_name_to_banding(filename, include_non_sp=False):
     Banding codes as per The Institute for Bird Populations downloaded from: http://www.birdpop.org/docs/misc/IBPAOU.zip
     Args:
         filename (str): csv file to open.
-        include_non_sp (bool, optional): Whether ot not to include non-species taxa. Defaults to False.
+        include_non_sp (bool, optional): Whether ot not to include non-species taxa, such as subspecies or morphs. Defaults to False.
     Returns:
         dict: A dictionary of {"common name": "4 letter code"} pairs.
     """
