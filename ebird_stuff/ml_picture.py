@@ -43,7 +43,7 @@ def ml_get_images(taxon_code, sort_type="quality"):
     asset_ids = []
     for x in range(30):
         x += 1
-        entry = tree.xpath(f"/html/body/main/form/div/div[2]/div[1]/div[{x}]/div[1]/div/a")[0].attrib
+        entry = tree.xpath(f"/html/body/main/form/div/div[3]/div[1]/div[{x}]/div[1]/div/a")[0].attrib
         asset_ids += [int(entry["data-asset-id"])]
     return asset_ids
 
