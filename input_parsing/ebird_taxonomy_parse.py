@@ -1,22 +1,19 @@
 import csv
 import re
 import json
+from dataclasses import dataclass, asdict
 from collections import defaultdict
 
 
-class Taxonomy:
-    def __init__(self, common_name, scientific_name, species_code, short_codes):
-        self.common_name = common_name
-        self.scientific_name = scientific_name
-        self.species_code = species_code
-        self.short_codes = short_codes
-
-    def __str__(self):
-        return f"{self.common_name}, {self.scientific_name}, {self.species_code}, {self.short_codes}"
-
-    def __repr__(self):
-        return str({"common_name": self.common_name, "scientific_name": self.scientific_name, "species_code": self.species_code, "short_codes": self.short_codes})
-
+@dataclass
+class Taxon:
+    """
+    Class to represent a single Taxon
+    """
+    common_name: str
+    scientific_name: str
+    species_code: str
+    short_codes: list
 
 def open_raw_csv_ebird(csv_path):
     """
@@ -122,7 +119,7 @@ def taxonomy_parse(csv_path):
             scientific_four_letter_code = name_to_4lc(scientific_name)
             species_code = line["species_code"]
             short_codes = common_four_letter_code + scientific_four_letter_code
-            taxon = Taxonomy(common_name, scientific_name, species_code, short_codes)
+            taxon = Taxon(common_name, scientific_name, species_code, short_codes)
             common_map[common_name] = taxon
             scientific_map[scientific_name] = taxon
             code_map[species_code] = taxon
@@ -139,5 +136,5 @@ if __name__ == "__main__":
 
     # Dump all the data with common names as the keys.
     with open('all_common.json', 'w') as f:
-        common_name_mappings = {k: repr(v) for k, v in common.items()}
+        common_name_mappings = {k: asdict(v) for k, v in common.items()}
         json.dump(common_name_mappings, f)
