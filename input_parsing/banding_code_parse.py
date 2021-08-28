@@ -1,6 +1,7 @@
 import csv
 import json
 
+
 def common_name_to_banding(filename, include_non_sp=False):
     """
     Converts the banding code CSV file to a dictionary.
@@ -12,7 +13,7 @@ def common_name_to_banding(filename, include_non_sp=False):
         dict: A dictionary of {"common name": "4 letter code"} pairs.
     """
     result = {}
-    with open(filename, 'r') as csv_file:
+    with open(filename, "r") as csv_file:
         reader = csv.DictReader(csv_file)
         for row in reader:
             if row["SP"] and not include_non_sp:
@@ -26,5 +27,5 @@ def common_name_to_banding(filename, include_non_sp=False):
 if __name__ == "__main__":
     csv_filename = "list19p.csv"
     banding_mapping = common_name_to_banding(csv_filename)
-    with open('banding.json', 'w') as f:
+    with open("banding.json", "w") as f:
         json.dump(banding_mapping, f)
