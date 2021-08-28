@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 import requests
+import unicodedata as ud
 
 
 @dataclass
@@ -60,6 +61,7 @@ def name_to_4lc(name):
     Note that eBird's own website does not support searching for some of the birds their own rules generate.
     The are also several ambiguities and edge cases in eBrid's rules for finding 4-letter-codes. A best guess at correct behaviour was taken.
     For example, the current rules say to treat all hyphens as spaces, but for Eurasian Collared-Dove both EUCD (alternate 3-word split) and ECDO (normal 3-word rule).
+    Results normalized to ascii.
     Args:
         name (str): name to convert to a 4-letter code
     Returns:
@@ -89,6 +91,7 @@ def name_to_4lc(name):
 def words_to_code(split_name):
     """
     Takes a tuple of the words that make up a bird's name and returns the actual 4-letter code using eBird's rules.
+    Result normalized to ascii.
     Args:
         split_name (tuple): Split words of a bird's name.
     Returns:
@@ -103,7 +106,7 @@ def words_to_code(split_name):
         res = (split_name[0][0:1] + split_name[1][0:1] + split_name[2][0:2]).upper()
     elif len(split_name) >= 4:
         res = "".join([split_name[x][0] for x in range(4)]).upper()
-    return res
+    return normalize_to_ascii(res)
 
 
 def taxonomy_parse(csv_path=""):
@@ -161,6 +164,17 @@ def taxonomy_parse(csv_path=""):
             for x in short_codes:
                 short_map[x] += [taxon]
     return common_map, scientific_map, code_map, short_map, band_map
+
+def normalize_to_ascii(s):
+    """
+    Normalizes a unicode string to the ascii representation of it.
+    This may or may not produce sane results.
+    Args:
+        s (str): String to normalize.
+    Returns:
+        str: normalized string in ascii, no matter what.
+    """
+    return ud.normalize("NFKD", s).encode("ascii", "ignore").decode()
 
 
 if __name__ == "__main__":
