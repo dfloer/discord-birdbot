@@ -13,8 +13,9 @@ csv_scientific_name_mappings = {k: v.scientific_code for k, v in csv_scientific.
 api_common_name_mappings = {k: v.short_codes for k, v in api_common.items()}
 api_scientific_name_mappings = {k: v.scientific_code for k, v in api_scientific.items()}
 
-csv_filename = "list19p.csv"
+csv_filename = "IBP-AOS-LIST21.csv"
 banding_mapping = bcp.common_name_to_banding(csv_filename)
+downloader_banding_mapping = bcp.common_name_to_banding("")
 banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
 api_banding_mapping = {v.common_name: k for k, v in api_band.items()}
 
@@ -55,7 +56,9 @@ def test_ebird(name, codes, input_data):
     assert set(codes) == set(input_data[name])
 
 
-@pytest.mark.parametrize("input_data", [banding_mapping, api_banding_mapping])
+@pytest.mark.parametrize(
+    "input_data", [banding_mapping, api_banding_mapping, downloader_banding_mapping]
+)
 @pytest.mark.parametrize(
     "name, code",
     [
@@ -71,6 +74,9 @@ def test_banding_included(name, code, input_data):
 
 
 @pytest.mark.parametrize(
+    "input_data", [banding_mapping, api_banding_mapping, downloader_banding_mapping]
+)
+@pytest.mark.parametrize(
     "name",
     [
         ("Western X Mountain Bluebird Hybrid"),
@@ -80,8 +86,8 @@ def test_banding_included(name, code, input_data):
         ("Unidentified Bird"),
     ],
 )
-def test_banding_excluded(name):
-    assert name not in banding_mapping.keys()
+def test_banding_excluded(name, input_data):
+    assert name not in input_data.keys()
 
 
 @pytest.mark.parametrize(
@@ -99,8 +105,9 @@ def test_banding_all(name):
 
 
 # And now the same test for scientific names.
-# @pytest.mark.parametrize("input_data", [csv_scientific_name_mappings, api_scientific_name_mappings])
-@pytest.mark.parametrize("input_data", [csv_scientific_name_mappings])
+@pytest.mark.parametrize(
+    "input_data", [csv_scientific_name_mappings, api_scientific_name_mappings]
+)
 @pytest.mark.parametrize(
     "scientific_name, all_codes",
     [
