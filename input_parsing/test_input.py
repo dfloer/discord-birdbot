@@ -4,15 +4,22 @@ import ebird_taxonomy_parse as etp
 import banding_code_parse as bcp
 
 fn = "eBird_Taxonomy_v2019.csv"
-common, scientific, code, short = etp.taxonomy_parse(fn)
-common_name_mappings = {k: v.short_codes for k, v in common.items()}
-scientific_name_mappings = {k: v.short_codes for k, v in scientific.items()}
+csv_common, csv_scientific, csv_code, csv_short, csv_band = etp.taxonomy_parse(fn)
+api_common, api_scientific, api_code, api_short, api_band = etp.taxonomy_parse('')
+
+csv_common_name_mappings = {k: v.short_codes for k, v in csv_common.items()}
+csv_scientific_name_mappings = {k: v.scientific_code for k, v in csv_scientific.items()}
+
+api_common_name_mappings = {k: v.short_codes for k, v in api_common.items()}
+api_scientific_name_mappings = {k: v.scientific_code for k, v in api_scientific.items()}
 
 csv_filename = "list19p.csv"
 banding_mapping = bcp.common_name_to_banding(csv_filename)
 banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
+api_banding_mapping = {v.common_name: k for k, v in api_band.items()}
 
 
+@pytest.mark.parametrize("input_data", [csv_common_name_mappings, api_common_name_mappings])
 @pytest.mark.parametrize("name, codes",
     [
         # Single word names
@@ -37,22 +44,14 @@ banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
         # >4 word names and their alternate forms.
         ("Black-and-white-casqued Hornbill", ["BAWC", "BWCH"]),
         ("King-of-Saxony Bird-of-Paradise", ["KOSB", "KSBP"]),
-        # These include the binomial/scientific name tests.
-        ("American Robin", ["AMRO", "TUMI"]),
-        ("Rough-legged Hawk", ["BULA", "RLHA"]),
-        ("Lesser Rhea", ["LERH", "RHPE"]),
-        ("Graylag Goose", ["GRGO", "ANAN"]),
-        ("Townsend's Warbler", ["TOWA", "SETO"]),
-        ("Hermit Warbler", ["HEWA", "SEOC"]),
         # Special yellow-rumped warbler code.
-        ("Yellow-rumped Warbler (Myrtle)", ["YRWA", "MYWA"]),
-        ("Yellow-rumped Warbler (Audubon's)", ["YRWA", "AUWA"]),
+        ("Yellow-rumped Warbler", ["YRWA", "MYWA", "AUWA"]),
     ],
 )
-def test_ebird(name, codes):
-    assert set(codes) == set(common_name_mappings[name])
+def test_ebird(name, codes, input_data):
+    assert set(codes) == set(input_data[name])
 
-
+@pytest.mark.parametrize("input_data", [banding_mapping, api_banding_mapping])
 @pytest.mark.parametrize("name, code",
     [
         ("Barn Owl", "BANO"),
@@ -62,8 +61,8 @@ def test_ebird(name, codes):
         ("Eurasian Collared-Dove", "EUCD"),
     ],
 )
-def test_banding_included(name, code):
-    assert banding_mapping[name] == code
+def test_banding_included(name, code, input_data):
+    assert input_data[name] == code
 
 
 @pytest.mark.parametrize("name",
@@ -91,26 +90,28 @@ def test_banding_all(name):
     assert name in banding_mapping_all.keys()
 
 # And now the same test for scientific names.
+# @pytest.mark.parametrize("input_data", [csv_scientific_name_mappings, api_scientific_name_mappings])
+@pytest.mark.parametrize("input_data", [csv_scientific_name_mappings])
 @pytest.mark.parametrize("scientific_name, all_codes",
     [
-        ("Setophaga coronata", ["YRWA", "MYWA", "AUWA", "SECO"]),
-        ("Mareca strepera", ["GADW", "MAST"]),
-        ("Tringa semipalmata", ["WILL", "TRSE"]),
-        ("Tringa erythropus", ["SPRE", "TRER"]),
-        ("Passer domesticus", ["HOSP", "PADO"]),
-        ("Sterna hirundo", ["COTE", "STHI"]),
-        ("Agelaius phoeniceus", ["RWBL", "AGPH"]),
-        ("Stercorarius maccormicki", ["SPSK", "STMA"]),
-        ("Stercorarius longicaudus", ["LTJA", "STLO"]),
-        ("Streptopelia decaocto", ["ECDO", "EUCD", "STDE"]),
-        ("Calocitta colliei", ["BTMJ", "BLMJ", "CACO"]),
-        ("Fregetta tropica", ["BBSP", "BLSP", "FRTR"]),
-        ("Setophaga virens", ["BTGW", "SEVI"]),
-        ("Knipolegus aterrimus", ["WWBT", "WHBT", "KNAT"]),
-        ("Tockus deckeni", ["VDDH", "TODE"]),
-        ("Bycanistes subcylindricus", ["BAWC", "BWCH", "BYSU"]),
-        ("Pteridophora alberti", ["KOSB", "KSBP", "PTAL"]),
+        ("Setophaga coronata", ["SECO"]),
+        ("Mareca strepera", ["MAST"]),
+        ("Tringa semipalmata", ["TRSE"]),
+        ("Tringa erythropus", ["TRER"]),
+        ("Passer domesticus", ["PADO"]),
+        ("Sterna hirundo", ["STHI"]),
+        ("Agelaius phoeniceus", ["AGPH"]),
+        ("Stercorarius maccormicki", ["STMA"]),
+        ("Stercorarius longicaudus", ["STLO"]),
+        ("Streptopelia decaocto", ["STDE"]),
+        ("Calocitta colliei", ["CACO"]),
+        ("Fregetta tropica", ["FRTR"]),
+        ("Setophaga virens", ["SEVI"]),
+        ("Knipolegus aterrimus", ["KNAT"]),
+        ("Tockus deckeni", ["TODE"]),
+        ("Bycanistes subcylindricus", ["BYSU"]),
+        ("Pteridophora alberti", ["PTAL"]),
     ],
 )
-def test_ebird(scientific_name, all_codes):
-    assert set(all_codes) == set(scientific_name_mappings[scientific_name])
+def test_ebird(scientific_name, all_codes, input_data):
+    assert set(all_codes) == set(input_data[scientific_name])
