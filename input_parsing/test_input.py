@@ -3,7 +3,7 @@ import pytest
 import ebird_taxonomy_parse as etp
 import banding_code_parse as bcp
 
-fn = "eBird_Taxonomy_v2019.csv"
+fn = "eBird_Taxonomy_v2021.csv"
 csv_common, csv_scientific, csv_code, csv_short, csv_band = etp.taxonomy_parse(fn)
 api_common, api_scientific, api_code, api_short, api_band = etp.taxonomy_parse("")
 
@@ -50,6 +50,9 @@ api_banding_mapping = {v.common_name: k for k, v in api_band.items()}
         ("King-of-Saxony Bird-of-Paradise", ["KOSB", "KSBP"]),
         # Special yellow-rumped warbler code.
         ("Yellow-rumped Warbler", ["YRWA", "MYWA", "AUWA"]),
+        # Test non-ascii normalization
+        ("Rüppell's Bustard", ["RUBU"]),
+        ("Sjöstedt's Owlet", ["SJOW"]),
     ],
 )
 def test_ebird(name, codes, input_data):
