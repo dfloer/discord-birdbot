@@ -84,7 +84,7 @@ def name_to_4lc(name):
     if space_split[-1].count("-") == 1 and space_split[0].count("-") == 0:
         last_hyphen = space_split[-1].split("-")
         hyphen_alt = space_split[0][0:2] + last_hyphen[0][0] + last_hyphen[1][0]
-        res.add(hyphen_alt.upper())
+        res.add(normalize_to_ascii(hyphen_alt.upper()))
     return list(res)
 
 
