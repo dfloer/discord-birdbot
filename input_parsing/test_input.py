@@ -133,5 +133,5 @@ def test_banding_all(name):
         ("Pteridophora alberti", ["PTAL"]),
     ],
 )
-def test_ebird(scientific_name, all_codes, input_data):
+def test_ebird_scientific(scientific_name, all_codes, input_data):
     assert set(all_codes) == set(input_data[scientific_name])
