@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pprint import pprint
 import PIL.Image as Image
 from io import BytesIO
+import mercantile
 
 # Doesn't quite work yet.
 def lat_lon_parse2(input_string, r=re):
@@ -21,7 +22,7 @@ def get_token():
 
 @dataclass
 class MapBox:
-    token: str
+    token: str = get_token()
     base_url: str = "https://api.mapbox.com/"
 
     def geocode(self, input_string, country="", bbox=[]):
@@ -150,6 +151,68 @@ class GBIF:
 
 
 @dataclass
+class eBirdMap:
+    """
+    Generates an eBird range map.
+    Note that this isn't using a documented API, and so could break at any time.
+    """
+
+    def get_bbox(self, species_code, zoom=0):
+        res = requests.get(
+            f"https://ebird.org/map/env?rsid=&speciesCode={species_code}"
+        )
+        left, right, bottom, top = res.json().values()
+        print("rbb: ", res.json())
+
+        bbox = mercantile.Bbox(left=left, right=right, bottom=bottom, top=top)
+        print("bbox: ", bbox)
+        tile_ids = list(mercantile.tiles(*bbox, zoom))
+        print("tile_ids:", tile_ids)
+        return tile_ids
+
+    def get_tiles(self, species_code, zoom, grid_scale=100):
+        # TODO: make this dynamic.
+        tile_ids = self.get_bbox(species_code, zoom)
+        r = requests.get(
+            f"https://ebird.org/map/rsid?speciesCode={species_code}&gridScale={grid_scale}"
+        )
+        rsid = r.content.decode("ascii")
+        print("rsid: ", rsid, "tiles: ", len(tile_ids))
+        tiles = {}
+        for t in tile_ids:
+            tile = self.download_tile(t.z, t.x, t.y, rsid)
+            tiles[(t.z, t.x, t.y)] = tile
+            print(t.z, t.x, t.y, tile)
+        return tiles
+
+    def download_tile(self, zoom, x, y, rsid):
+        url = f"https://geowebcache.birds.cornell.edu/ebird/gmaps?layers=EBIRD_GRIDS_WS2&format=image/png&zoom={zoom}&x={x}&y={y}&CQL_FILTER=result_set_id='{rsid}'"
+        print(f"Getting url: {url}")
+        res = requests.get(url)
+        print(res)
+        img = Image.open(BytesIO(res.content))
+        return Tile(zoom, x, y, img, name=f"ebird-{rsid}")
+
+    def get_range_map(self, species_code, zoom=0, mapbox_style="satellite"):
+        mapbox = MapBox()
+        ebird_tiles = self.get_tiles(species_code, zoom)
+        print("ebird_tiles:", ebird_tiles)
+        ebird_tile_imgs = ebird_tiles.values()
+        ebird_img = composite_quad(ebird_tile_imgs)
+        with open("ebird_comp_quad.png", "wb") as f:
+            ebird_img.save(f, "png")
+        mapbox_tiles = [
+            mapbox.get_tile(z=a, x=b, y=c, style=mapbox_style, high_res=False)
+            for a, b, c in ebird_tiles.keys()
+        ]
+        mapbox_image = composite_quad(mapbox_tiles)
+        with open("mapbox_comp_quad.png", "wb") as f:
+            ebird_img.save(f, "png")
+        new_img = comp(mapbox_image, ebird_img)
+        return new_img
+
+
+@dataclass
 class Tile:
     z: int
     x: int
@@ -180,3 +243,72 @@ class Tile:
         d = BytesIO()
         self.img.save(d, "png")
         return BytesIO(d.getvalue())
+
+
+def composite_quad(tiles):
+    """
+    Takes 4 tiles and composites then together.
+    TODO: change output to a Tile with zoom level and bounds recalculated.
+    Ordering goes like this:
+    |---|---|
+    | 0 | 1 |
+    |---|---|
+    | 2 | 3 |
+    |---|---|
+    Args:
+        tiles list(Tile): Tiles to stick together.
+    Returns:
+        Image: Image of the composited tiles.
+    """
+    if list(tiles)[0].img.mode == "RGB":
+        print("RGB")
+        new_image = Image.new("RGB", (512, 512))
+    else:
+        print("RGBA")
+        new_image = Image.new("RGBA", (512, 512))
+    for i in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+        idx = int(f"{i[0]}{i[1]}", 2)
+        x_coord, y_coord = [256 * a for a in i]
+        print("corner:", x_coord, y_coord)
+        t_img = list(tiles)[idx].img
+
+        if t_img.mode == "RGBA":
+            print("_RGBA_", new_image.mode)
+            new_image.alpha_composite(t_img, (x_coord, y_coord))
+        else:
+            print("_RGB_", new_image.mode)
+            new_image.paste(t_img, (x_coord, y_coord, x_coord + 256, y_coord + 256))
+    return new_image
+
+def comp(a, b, t=200):
+    """
+    Composites image b onto image a and adjusts the opacity.
+    Why this awful code? It was the only way to support an already partially opaque image.
+        Args:
+        a (Image): [description]
+        b (Image): [description]
+        t (int, optional): Opacity level, between 0 and 255 inclusive. Defaults to 200.
+
+    Returns:
+        Image: Composited image.
+    """
+    t = max(min(t, 255), 0)
+
+    # We want to convert our transparent image to a non-transparent image only where there are pixels with a not fully-transparent alpha value.
+    # So we end up with two transparency levels, either fully transparent or not at all.
+    bp = list(b.getdata())
+    bp2 = [(r, g, b, 255) if a != 0 else (r, b, g, 0) for r, g, b, a in bp]
+    new_b = Image.new('RGBA', b.size)
+    new_b.putdata(bp2)
+
+    # Generate transparency mask.
+    # If there's a non fully-transparent pixel in b, this should be added to the mast at the specified transparency level.
+    # And if it isn't, it can stay at 0 (a==0).
+    bp2m = [t if a != 0 else a for _, _, _, a in bp]
+    paste_mask = Image.new('L', b.size, 255)
+    paste_mask.putdata(bp2m)
+
+    # best not to clobber a, just in case.
+    temp_image = a.copy()
+    temp_image.paste(new_b, (0, 0, *b.size), mask=paste_mask)
+    return temp_image
