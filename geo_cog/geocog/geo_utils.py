@@ -5,6 +5,9 @@ from pprint import pprint
 import PIL.Image as Image
 from io import BytesIO
 import mercantile
+from collections import namedtuple
+
+TileID = namedtuple("TileID", ("z", "x", "y"))
 
 # Doesn't quite work yet.
 def lat_lon_parse2(input_string, r=re):
@@ -72,7 +75,7 @@ class MapBox:
         res = requests.get(self.base_url + url, params=params)
         if res.status_code == 200:
             img = Image.open(BytesIO(res.content))
-            tile = Tile(x, y, z, img, "mapbox")
+            tile = Tile(tid=(z, x, y), img=img, name="mapbox")
             return tile
         else:
             print(res.status_code, res.url)
@@ -125,7 +128,7 @@ class GBIF:
         print(res, res.headers)
         print(res.url)
         img = Image.open(BytesIO(res.content))
-        return Tile(zoom, x, y, img, "gbif")
+        return Tile((zoom, x, y), img=img, name="gbif")
 
     def lookup_species(self, name):
         """
@@ -165,69 +168,100 @@ class eBirdMap:
         print("rbb: ", res.json())
 
         bbox = mercantile.Bbox(left=left, right=right, bottom=bottom, top=top)
-        print("bbox: ", bbox)
-        tile_ids = list(mercantile.tiles(*bbox, zoom))
-        print("tile_ids:", tile_ids)
+        # print("bbox: ", bbox)
+        # print(f"bbox2: ({', '.join([str(x) for x in bbox])})")
+        # target is to find 4 tiles that cover the bounded area. For a larger map, more tiles will be needed.
+        while True:
+            tile_ids = list(mercantile.tiles(*bbox, zoom))
+            if len(tile_ids) >= 4:
+                break
+            else:
+                zoom += 1
         return tile_ids
 
-    def get_tiles(self, species_code, zoom, grid_scale=100):
-        # TODO: make this dynamic.
+    def get_tiles(self, species_code, zoom):
         tile_ids = self.get_bbox(species_code, zoom)
+        grid_scale = 20 if tile_ids[0].z >= 6 else 100
         r = requests.get(
             f"https://ebird.org/map/rsid?speciesCode={species_code}&gridScale={grid_scale}"
         )
         rsid = r.content.decode("ascii")
         print("rsid: ", rsid, "tiles: ", len(tile_ids))
-        tiles = {}
+        tiles = []
         for t in tile_ids:
-            tile = self.download_tile(t.z, t.x, t.y, rsid)
-            tiles[(t.z, t.x, t.y)] = tile
-            print(t.z, t.x, t.y, tile)
+            tile = self.download_tile(zoom=t.z, x=t.x, y=t.y, rsid=rsid)
+            # print("Tile: ", tile)
+            tile.name = f"ebird-{species_code}"
+            tiles += [tile]
+            # print(tile.z, tile.x, tile.y, tile.center, tile)
         return tiles
 
     def download_tile(self, zoom, x, y, rsid):
         url = f"https://geowebcache.birds.cornell.edu/ebird/gmaps?layers=EBIRD_GRIDS_WS2&format=image/png&zoom={zoom}&x={x}&y={y}&CQL_FILTER=result_set_id='{rsid}'"
-        print(f"Getting url: {url}")
+        # print(f"Getting url: {url}")
         res = requests.get(url)
-        print(res)
+        # print(res)
         img = Image.open(BytesIO(res.content))
-        return Tile(zoom, x, y, img, name=f"ebird-{rsid}")
+        return Tile(TileID(z=zoom, x=x, y=y), img=img, name=f"ebird-{rsid}")
 
     def get_range_map(self, species_code, zoom=0, mapbox_style="satellite"):
+        # TODO: support sizes other than 512x512.
+        # TODO: support returning centered range maps.
+        # TODO: make zoom set arbitary zoom
+        # Currently crops to something that fits in the bounds of the given image, but it'll look better if it's centered.
+        # Which means that more image tiles will need to be downloaded.
+        out_size = 512  # TODO: Support sizes other than 512x512.
         mapbox = MapBox()
-        ebird_tiles = self.get_tiles(species_code, zoom)
-        print("ebird_tiles:", ebird_tiles)
-        ebird_tile_imgs = ebird_tiles.values()
-        ebird_img = composite_quad(ebird_tile_imgs)
-        with open("ebird_comp_quad.png", "wb") as f:
+        ebird_tile_imgs = self.get_tiles(species_code, zoom)
+        # print("ebird_tiles:", ebird_tiles)
+        ebird_img = composite_mxn(ebird_tile_imgs)
+        with open("ebird_comp_mxn.png", "wb") as f:
             ebird_img.save(f, "png")
         mapbox_tiles = [
-            mapbox.get_tile(z=a, x=b, y=c, style=mapbox_style, high_res=False)
-            for a, b, c in ebird_tiles.keys()
+            mapbox.get_tile(z=t.z, x=t.x, y=t.y, style=mapbox_style, high_res=False)
+            for t in ebird_tile_imgs
         ]
-        mapbox_image = composite_quad(mapbox_tiles)
-        with open("mapbox_comp_quad.png", "wb") as f:
-            ebird_img.save(f, "png")
+        mapbox_image = composite_mxn(mapbox_tiles)
+        with open("mapbox_comp_mxn.png", "wb") as f:
+            mapbox_image.save(f, "png")
+        # This is our output map, but it needs a final crop.
         new_img = comp(mapbox_image, ebird_img)
-        return new_img
+        crop_area, center, bbox, extra_tiles, fill_crop = find_crop_bounds(
+            ebird_img, out_size
+        )
+        new_img_crop = new_img.crop(fill_crop)
+        return new_img_crop
 
 
 @dataclass
 class Tile:
-    z: int
-    x: int
-    y: int
+    tid: TileID
     img: Image
     name: str = "tile"
+    resolution: int = 1
+
+    def __post_init__(self):
+        self.resolution = self.size[0] // 256
+        # Just a tuple, list or similar.
+        if not isinstance(self.tid, TileID):
+            t = self.tid
+            z, x, y = t
+            self.tid = TileID(z=z, x=x, y=y)
+            # attempt to detect getting in form of (x, y, z)
+            # and convert to (z, x, y)
+            # This won't always catch an issue.
+            if z > 30 or y > 2 ** z or x > 2 ** z:
+                print("Fucky input.")
+                self.tid = TileID(z=y, x=z, y=x)
 
     @property
     def size(self):
         return self.img.size
 
     def save(self):
-        x_dim, y_dim = self.size
         with open(
-            f"{self.name}_{self.z}-{self.x}-{self.y}_{x_dim}x{y_dim}.png", "wb"
+            f"{self.name}_z{self.tid.z}-x{self.tid.x}-y{self.tid.y}_r{self.resolution}.png",
+            "wb",
         ) as f:
             self.img.save(f, "png")
 
@@ -236,7 +270,7 @@ class Tile:
         # Sizes need to match, and no scaling is done otherwise.
         new_img = Image.composite(tile.img, self.img, tile.img)
         new_name = f"c{self.name}+{tile.name}"
-        return Tile(self.x, self.y, self.z, new_img, new_name)
+        return Tile(self.tid, new_img, new_name)
 
     @property
     def asbytes(self):
@@ -244,41 +278,233 @@ class Tile:
         self.img.save(d, "png")
         return BytesIO(d.getvalue())
 
+    @property
+    def center(self):
+        """
+        Returns the center of the tile as a (lat, lon) pair. Assumes flat projection.
+        """
+        bbox = self.bounds
+        print("bbox:", bbox)
+        return ((bbox.west + bbox.east) / 2, (bbox.north + bbox.south) / 2)
 
-def composite_quad(tiles):
+    @property
+    def bounds(self):
+        """
+        Get a mercantile bounding box for tile.
+        """
+        return mercantile.bounds(self.tid.x, self.tid.y, self.tid.z)
+
+    @property
+    def parent(self):
+        """
+        Return the tile id for the parent, in the form of z, x, y.
+        """
+        return mercantile.parent(self.tid.x, self.tid.y, self.tid.z)
+
+    @property
+    def children(self):
+        """
+        Returns a list of this tile's 4 child tile ids.
+        """
+        return mercantile.children(self.tid.x, self.tid.y, self.tid.z)
+
+    @property
+    def x(self):
+        return self.tid.x
+
+    @property
+    def y(self):
+        return self.tid.y
+
+    @property
+    def z(self):
+        return self.tid.z
+
+    @property
+    def zoom(self):
+        return self.z
+
+
+def composite_mxn(tiles):
     """
-    Takes 4 tiles and composites then together.
-    TODO: change output to a Tile with zoom level and bounds recalculated.
-    Ordering goes like this:
-    |---|---|
-    | 0 | 1 |
-    |---|---|
-    | 2 | 3 |
-    |---|---|
+    Composites tiles in an M x N array together. If the tiles are sparse, this won't work.
     Args:
-        tiles list(Tile): Tiles to stick together.
+        tiles (Tiles): Iterable of tiles to composite together.
     Returns:
-        Image: Image of the composited tiles.
+        Image: All if the tiles composited together into one big image.
+    Raises:
+        TileCompositingError: if errors occuring during compositing or with preconditions.
     """
-    if list(tiles)[0].img.mode == "RGB":
+    print("---------------------")
+    print("c2:", tiles)
+    x_min = min(t.tid.x for t in tiles)
+    x_max = max(t.tid.x for t in tiles)
+    y_min = min(t.tid.y for t in tiles)
+    y_max = max(t.tid.y for t in tiles)
+    x_dim = x_max - x_min + 1
+    y_dim = y_max - y_min + 1
+    print(f"x=({x_min}, {x_max}), y=({y_min}, {y_max})")
+    print(f"x_dim={x_dim}, y_dim={y_dim}")
+
+    # Check for holes.
+    if x_dim * y_dim != len(tiles):
+        msg = f"{len(tiles)} expected, got {x_dim * y_dim}."
+        raise TileCompositingError(msg)
+    # Make sure that all of the tiles are the same size.
+    if len(set(t.size for t in tiles)) != 1:
+        msg = "All tiles need to be the same size."
+        raise TileCompositingError(msg)
+    # Make sure images are the same mode.
+    if len(set(t.img.mode for t in tiles)) != 1:
+        msg = "Mixed tile image modes."
+        raise TileCompositingError(msg)
+
+    tt = tiles[0]
+
+    tile_size = tt.resolution * 256
+    output_size = tile_size * x_dim, tile_size * y_dim
+    print("os:", output_size)
+
+    if tt.img.mode == "RGB":
         print("RGB")
-        new_image = Image.new("RGB", (512, 512))
+        new_image = Image.new("RGB", output_size)
     else:
         print("RGBA")
-        new_image = Image.new("RGBA", (512, 512))
-    for i in [(0, 0), (0, 1), (1, 0), (1, 1)]:
-        idx = int(f"{i[0]}{i[1]}", 2)
-        x_coord, y_coord = [256 * a for a in i]
+        new_image = Image.new("RGBA", output_size, (0, 255, 255, 0))
+    for x, y in [(a, b) for a in range(x_dim) for b in range(y_dim)]:
+        curr_tile = [
+            tile for tile in tiles if tile.x == x + x_min and tile.y == y + y_min
+        ][0]
+        # Get the coordinates of the corner.
+        x_coord, y_coord = [tile_size * a for a in (x, y)]
         print("corner:", x_coord, y_coord)
-        t_img = list(tiles)[idx].img
+        t_img = curr_tile.img
 
         if t_img.mode == "RGBA":
             print("_RGBA_", new_image.mode)
             new_image.alpha_composite(t_img, (x_coord, y_coord))
         else:
             print("_RGB_", new_image.mode)
-            new_image.paste(t_img, (x_coord, y_coord, x_coord + 256, y_coord + 256))
+            new_image.paste(
+                t_img, (x_coord, y_coord, x_coord + tile_size, y_coord + tile_size)
+            )
+    print("---------------------")
     return new_image
+
+
+def calc_extra_tiles(tiles, extra_tiles):
+    left = min(t.tid.x for t in tiles) - extra_tiles[0]
+    upper = min(t.tid.y for t in tiles) - extra_tiles[1]
+    right = max(t.tid.x for t in tiles) + extra_tiles[2]
+    lower = max(t.tid.y for t in tiles) + extra_tiles[3]
+    return (left, upper, right, lower)
+
+
+def find_crop_bounds(image, output_size=512):
+    """
+    Calculates the crop for a given image.
+    Args:
+        image (Image): input image to calculate the crop for.
+        tile_size (int, optional): [description]. Defaults to 512.
+    Raises:
+        NotRGBAError: We can only find pixels that contain data on RGBA images, as alpha = 0 is no data.
+    Returns:
+        [tuple]: (crop_area, center, bbox, extra_tiles)
+            Where "crop_area" is the area this tile would be cropped to if it was output_size pixels on a side.
+            and "center" is the center of the area that was cropped.
+            and "bbox" is the maximum bounding box for the pixels in the source image.
+            and "extra_tiles" is whether or not extra tiles need to be grabbed in the form (left, upper, right, bottom).
+            and "fill_crop" is the bounding box for a crop that stays within the current image.
+
+    """
+    if image.mode != "RGBA":
+        raise NotRGBAError
+    bbox = image.getbbox()
+    # x_dim = bbox[2] - bbox[0]
+    # y_dim = bbox[3] - bbox[1]
+    size_x, size_y = image.size
+    center = (bbox[2] + bbox[0]) // 2, (bbox[3] + bbox[1]) // 2
+    left = center[0] - output_size // 2
+    upper = center[1] - output_size // 2
+    right = center[0] + output_size // 2
+    lower = center[1] + output_size // 2
+    crop_area = (left, upper, right, lower)
+    # print("ideal crop:", crop_area)
+    # print(f"minimal crop area: {x_dim}, {y_dim}")
+    extra_tiles = [0, 0, 0, 0]
+    fill_left = left
+    fill_upper = upper
+    if left < 0:
+        extra_tiles[0] = 1
+        fill_left = 0
+    if upper < 0:
+        extra_tiles[1] = 1
+        fill_upper = 0
+    if right > size_x:
+        extra_tiles[2] = 1
+        fill_left = 0
+    if lower > size_y:
+        extra_tiles[3] = 1
+        fill_upper = 0
+    fill_crop = (
+        fill_left,
+        fill_upper,
+        fill_left + output_size,
+        fill_upper + output_size,
+    )
+    return crop_area, center, bbox, extra_tiles, fill_crop
+
+
+class NotRGBAError(Exception):
+    pass
+
+
+class TileCompositingError(Exception):
+    """
+    Raised when Tile compositing fails.
+    """
+
+    def __init__(self, message="An error occured in compositing."):
+        self.message = message
+        super().__init__(self.message)
+
+
+def composite_quad(tiles):
+    """
+    Takes 4 tiles and composites then together.
+    """
+    return composite_mxn(tiles)
+
+
+def make_parent(tiles, scale=False, quality=1):
+    """
+    Combines 4 tiles into a parent tile only if they are siblings.
+    Args:
+        tiles (list(Tile)): List of 4 tiles to combine into a parent tile.
+        scale (bool, optional): If True, scale the resulting tile down to preserve the tile resolution.
+        quality (int, optional): Quality level, from 0 to 4. Higher quality is slower. Defaults to 1.
+    Returns:
+        Tile: A parent tile. None if they don't share a parent.
+    """
+    quality = max(min(quality, 4), 0)
+    resample = [
+        Image.Nearest,
+        Image.BILINEAR,
+        Image.HAMMING,
+        Image.BICUBIC,
+        Image.LANCZOS,
+    ]
+    if len({tile.parent for tile in tiles}) != 1:
+        return None
+    new_image = composite_quad(tiles)
+    res = tiles[0].resolution + 1
+    if scale:
+        res -= 1
+        size = res * 256
+        new_image = new_image.resize((size, size), resample=resample["quality"])
+    parent_id = tiles[0].parent
+    return Tile(parent_id, new_image, name=tiles[0].name, resolution=res)
+
 
 def comp(a, b, t=200):
     """
@@ -298,14 +524,14 @@ def comp(a, b, t=200):
     # So we end up with two transparency levels, either fully transparent or not at all.
     bp = list(b.getdata())
     bp2 = [(r, g, b, 255) if a != 0 else (r, b, g, 0) for r, g, b, a in bp]
-    new_b = Image.new('RGBA', b.size)
+    new_b = Image.new("RGBA", b.size)
     new_b.putdata(bp2)
 
     # Generate transparency mask.
     # If there's a non fully-transparent pixel in b, this should be added to the mast at the specified transparency level.
     # And if it isn't, it can stay at 0 (a==0).
     bp2m = [t if a != 0 else a for _, _, _, a in bp]
-    paste_mask = Image.new('L', b.size, 255)
+    paste_mask = Image.new("L", b.size, 255)
     paste_mask.putdata(bp2m)
 
     # best not to clobber a, just in case.
