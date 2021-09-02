@@ -1,12 +1,13 @@
 from redbot.core import commands
 import sys
 import os
+
 sys.path.append(os.getcwd())
 
 from ebird_lookup import ebird_lookup as ebl
 
-class LookupCog(commands.Cog):
 
+class LookupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.typesense = ebl.TypeSenseSearch(api_key="changeMe!")
@@ -16,7 +17,7 @@ class LookupCog(commands.Cog):
 
     def find_name(self, arg, backend):
         res = "No mapping found."
-        if len(arg) != 4 and arg not in ['Emu', 'Kea', 'Tui', 'Mao', 'Ou']:
+        if len(arg) != 4 and arg not in ["Emu", "Kea", "Tui", "Mao", "Ou"]:
             res = f"{arg} is not valid (too short)."
         try:
             r = backend.code_to_names(arg)
@@ -73,7 +74,3 @@ class LookupCog(commands.Cog):
     async def name2(self, ctx, *, arg):
         res = self.find_name(arg, self.meili)
         await ctx.send(res)
-
-    @commands.command()
-    async def echo(self, ctx, *, arg):
-        await ctx.send(f"echo: {arg}")
