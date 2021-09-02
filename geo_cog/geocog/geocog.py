@@ -5,9 +5,12 @@ import os
 import requests
 import re
 from io import BytesIO
+from datetime import datetime
+from random import randint
 
 sys.path.append(os.getcwd())
 from .geo_utils import MapBox, GBIF, Tile, eBirdMap, get_token
+from ebird_lookup import ebird_lookup as ebl
 
 
 class GeoCog(commands.Cog):
@@ -16,6 +19,17 @@ class GeoCog(commands.Cog):
         self.mapbox = MapBox(self.mapbox_token)
         self.gbif = GBIF()
         self.ebird = eBirdMap()
+        self.typesense = ebl.TypeSenseSearch(api_key="changeMe!")
+        self.typesense.connect()
+        self.meili = ebl.MeilisearchSearch(api_key="changeMe!")
+        self.meili.connect()
+
+    def find_species_from_name(self, arg, backend):
+        try:
+            r = backend.name_to_codes(arg, "all")
+            return r
+        except Exception:
+            return None
 
     @commands.command(
         brief="Gets a lat/lon from an address, or vice versa.",
@@ -74,19 +88,30 @@ class GeoCog(commands.Cog):
         usage="[query]",
     )
     async def ebirdmap(self, ctx, *, arg):
-        species_code = "bushti"
-        common_name = "Bushtit"
-        scientific_name = "Psaltriparus minimus"
-        res_img = self.ebird.get_range_map(species_code, 3)
-        title = f"eBird range map for: Bushtit (_{scientific_name}_)."
-        desc = "Any bird you want, as long as it's a Bushtit."
+        ab = randint(0, 1)
+        backend = [self.typesense, self.meili][ab]
+        backend_name = ["typesense", "meili"][ab]
+        res = self.find_species_from_name(arg, backend)
+        res_img = None
+        if res:
+            print("res:", res, backend_name)
+            species_code = res["species_code"]
+            common_name = res["name"]
+            scientific_name = res["scientific_name"]
+            title = f"eBird range map for: {common_name} (_{scientific_name}_)."
+            try:
+                start = datetime.now()
+                res_img = self.ebird.get_range_map(species_code, 3)
+                d = BytesIO()
+                res_img.save(d, "png")
+                img = BytesIO(d.getvalue())
+                end = datetime.now()
+                desc = f"Map generated in {(end - start).seconds}s. Search: {backend_name}."
+                embed = discord.Embed(title=title, description=desc, color=0x007F00)
+                file = discord.File(img, filename=f"{species_code}.png")
+            except Exception:
+                pass
 
-        d = BytesIO()
-        res_img.save(d, "png")
-        img = BytesIO(d.getvalue())
-
-        embed = discord.Embed(title=title, description=desc, color=0x007F00)
-        file = discord.File(img, filename=f"{species_code}.png")
         if res_img:
             await ctx.send(file=file, embed=embed)
         else:

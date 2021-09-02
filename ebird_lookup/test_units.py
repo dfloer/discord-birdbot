@@ -33,23 +33,47 @@ meili = MeilisearchSearch(api_key="changeMe!", taxonomy=test)
 meili.connect()
 meili.populate_taxonomy()
 
+
+@pytest.mark.parametrize(
+    "backend",
+    [test, typesense, meili],
+)
 # Note that these tests assume correct data from the input files, and are only testing correct operation.
 @pytest.mark.parametrize(
-    "name, short_codes, species_code, mode",
+    "name, short_codes, species_code, sci_name, mode",
     [
-        ("Red-winged Blackbird", ["RWBL"], "rewbla", "single"),
-        ("Red-winged Blackbird", ["RWBL"], "rewbla", "all"),
-        ("Eurasian Collared-Dove", ["EUCD", "ECDO"], "eucdov", "all"),
-        ("Eurasian Collared-Dove", ["EUCD"], "eucdov", "banding"),
-        ("Eurasian Collared-Dove", ["EUCD"], "eucdov", "single"),
-        ("potatoebird", [], None, "single"),
+        ("Red-winged Blackbird", ["RWBL"], "rewbla", "Agelaius phoeniceus", "single"),
+        ("Red-winged Blackbird", ["RWBL"], "rewbla", "Agelaius phoeniceus", "all"),
+        (
+            "Eurasian Collared-Dove",
+            ["EUCD", "ECDO"],
+            "eucdov",
+            "Streptopelia decaocto",
+            "all",
+        ),
+        (
+            "Eurasian Collared-Dove",
+            ["EUCD"],
+            "eucdov",
+            "Streptopelia decaocto",
+            "banding",
+        ),
+        (
+            "Eurasian Collared-Dove",
+            ["EUCD"],
+            "eucdov",
+            "Streptopelia decaocto",
+            "single",
+        ),
+        ("potatoebird", [], None, None, "single"),
     ],
 )
-def test_name_to_codes(name, short_codes, species_code, mode):
-    res = test.name_to_codes(name, mode)
+def test_name_to_codes(name, short_codes, species_code, sci_name, mode, backend):
+    res = backend.name_to_codes(name, mode)
     assert res["name"] == name
     assert res["short_codes"] == short_codes
     assert res["species_code"] == species_code
+    assert res["scientific_name"] == sci_name
 
 
 @pytest.mark.parametrize("name", ["Bushtit"])
@@ -90,7 +114,7 @@ def test_name_lookup(name, codes, backend):
     "code, names",
     [
         ("BUSH", ["Bushtit", "Burmese Shrike", "Buller's Shearwater"]),
-        ("EUCD", ['Eurasian Collared-Dove']),
+        ("EUCD", ["Eurasian Collared-Dove"]),
         ("ECDO", ["Enggano Cuckoo-Dove", "Eurasian Collared-Dove"]),
         ("TEST", ["Temminck's Stint"]),
         ("WETA", ["Western Tanager", "White-eared Tailorbird"]),
@@ -107,6 +131,7 @@ def test_code_lookup(code, names, backend):
     print(res)
     assert set(res["names"]) == set(names)
 
+
 @pytest.mark.parametrize(
     "backend",
     [typesense, meili],
@@ -119,8 +144,24 @@ def test_code_lookup(code, names, backend):
         ("Red winged Blackbird", "Red-winged Blackbird"),
         # ("Redwinged Blackbird", "Red-winged Blackbird"),  # is this reasonable?
         # ("Red-wing Blackbird", "Red-winged Blackbird"),
-        ("Verreaux's", ["Verreaux's Batis", "Verreaux's Eagle-Owl", "Verreaux's Coua", "Verreaux's Eagle"]),
-        ("Verreauxs", ["Verreaux's Batis", "Verreaux's Eagle-Owl", "Verreaux's Coua", "Verreaux's Eagle"]),
+        (
+            "Verreaux's",
+            [
+                "Verreaux's Batis",
+                "Verreaux's Eagle-Owl",
+                "Verreaux's Coua",
+                "Verreaux's Eagle",
+            ],
+        ),
+        (
+            "Verreauxs",
+            [
+                "Verreaux's Batis",
+                "Verreaux's Eagle-Owl",
+                "Verreaux's Coua",
+                "Verreaux's Eagle",
+            ],
+        ),
         ("St. Helena Rail", "St. Helena Rail"),
         ("St Helena Rail", "St. Helena Rail"),
         ("Grey Partridge", "Gray Partridge"),

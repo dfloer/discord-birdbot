@@ -43,7 +43,12 @@ class eBirdTaxonomy:
                 "short_codes": is the 4-letter code results list, and will contain 0 items if there was no match.
                 "species_code": is a string containing the 6-character ebird code, or None if there was no match.
         """
-        res = {"name": name, "short_codes": [], "species_code": None}
+        res = {
+            "name": name,
+            "short_codes": [],
+            "species_code": None,
+            "scientific_name": None,
+        }
         if mode != "fuzzy":
             try:
                 bird = self.ebird_data[name]
@@ -57,6 +62,7 @@ class eBirdTaxonomy:
             else:
                 res["short_codes"] = bird["short_codes"]
             res["species_code"] = bird["species_code"]
+            res["scientific_name"] = bird["scientific_name"]
         return res
 
     def on_get(req, res, mode, name):
@@ -136,7 +142,12 @@ class TypeSenseSearch:
         return res["hits"]
 
     def name_to_codes(self, name, mode="single"):
-        res = {"name": name, "short_codes": [], "species_code": None}
+        res = {
+            "name": name,
+            "short_codes": [],
+            "species_code": None,
+            "scientific_name": None,
+        }
         sr = self.search_name(name)
         # No results.
         if len(sr) == 0:
@@ -148,10 +159,14 @@ class TypeSenseSearch:
         if mode == "single":
             print("single")
             res["short_codes"] = [data["short_codes"][0]]
+        elif mode == "banding":
+            # TODO: Implement banding codes.
+            res["short_codes"] = [data["short_codes"][0]]
         else:
             print("double")
             res["short_codes"] = data["short_codes"]
         res["species_code"] = data["species_code"]
+        res["scientific_name"] = data["scientific_name"]
         return res
 
     def code_to_names(self, code):
@@ -222,19 +237,26 @@ class MeilisearchSearch:
         return self.filter_search(term, max_hits)
 
     def name_to_codes(self, name, mode="single"):
-        res = {"name": name, "short_codes": [], "species_code": None}
+        res = {
+            "name": name,
+            "short_codes": [],
+            "species_code": None,
+            "scientific_name": None,
+        }
         hits = self.search(name, 1)
         if len(hits) == 0 or hits == []:
             return res
         h = hits[0]
         print(h)
         codes = h["short_codes"]
-        if mode == "single":
+        # TODO: Implement banding codes.
+        if mode == "single" or mode == "banding":
             codes = [codes[0]]
         return {
             "name": h["common_name"],
             "short_codes": codes,
-            "species_code": h["short_codes"],
+            "species_code": h["species_code"],
+            "scientific_name": h["scientific_name"],
         }
 
     def code_to_names(self, code):
