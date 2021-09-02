@@ -65,13 +65,14 @@ class MapBox:
         """
         # If the resolution is douled, MapBox only server every 2nd zoom level.
         # So if we're in this state, we need to take the next higher zoom level.
-        if high_res and z % 2 != 0:
-            z += 1
+        # if high_res and z % 2 != 0:
+        #     z += 1
         params = {"access_token": self.token}
         hr = ""
         if high_res:
             hr = "@2x"
         url = f"v4/mapbox.{style}/{z}/{x}/{y}{hr}.{fmt}"
+        print("murl:", self.base_url + url)
         res = requests.get(self.base_url + url, params=params)
         if res.status_code == 200:
             img = Image.open(BytesIO(res.content))
@@ -87,6 +88,8 @@ class GBIF:
     base_url: str = "https://api.gbif.org/"
     srs: str = "EPSG:3857"
     data_key: str = "47f16512-bf31-410f-b272-d151c996b2f6"
+    # This seems like a reasonable default right now.
+    max_zoom: int = 12
 
     def get_hex_map(
         self,
@@ -123,12 +126,19 @@ class GBIF:
         if year:
             params["year"] = year
         params["srs"] = self.srs
-        url = f"v2/map/occurrence/{source}/{zoom}/{x}/{y}{format}"
-        res = requests.get(self.base_url + url, params=params)
-        print(res, res.headers)
-        print(res.url)
-        img = Image.open(BytesIO(res.content))
-        return Tile((zoom, x, y), img=img, name="gbif")
+        metadata = self.get_occurence_meta(taxon_key)
+        print("metadata", metadata)
+        bbox = self.get_bbox(metadata)
+        print("bbox", bbox)
+        tile_ids = self.tileid_from_bbox(bbox)
+        print("tile_ids", tile_ids)
+        tiles = []
+        for t in tile_ids:
+            url = f"v2/map/occurrence/{source}/{t.z}/{t.x}/{t.y}{format}"
+            res = requests.get(self.base_url + url, params=params)
+            img = Image.open(BytesIO(res.content))
+            tiles += [Tile(t, img=img, name="gbif")]
+        return tiles
 
     def lookup_species(self, name):
         """
@@ -151,6 +161,54 @@ class GBIF:
         else:
             return (None, None)
         return res
+
+    def get_occurence_meta(self, taxon_key):
+        u = f"https://api.gbif.org/v2/map/occurrence/density/capabilities.json?taxonKey={taxon_key}"
+        r = requests.get(u)
+        return r.json()
+
+    def get_bbox(self, metadata):
+        left = metadata["maxLng"]
+        if left == 0:
+            left = -180
+        print("left", left)
+        right = metadata["minLng"]
+        top = metadata["maxLat"]
+        bottom = metadata["minLat"]
+        bbox = mercantile.Bbox(left=left, right=right, bottom=bottom, top=top)
+        return bbox
+
+    def tileid_from_bbox(self, bbox, tile_scale=1):
+        """
+        Gets the tile_ids given a bounding box.
+        Args:
+            bbox (tuple): (left, upper, right, bottom) mercantile compatible bounding box.
+            tile_scale (int, optional): Essentially how much zoom to add. +ve numbers zoom in, -ve zoom out. 0 treated as 1: no zoom change. Defaults to 1.
+        Returns:
+            (TileID): Tuple containing TileID objects.
+        """
+        tile_ids = []
+        tm = mercantile.bounding_tile(*bbox)
+        if tile_scale < 0:
+            start_z = tm.z
+            end_z = tm.z + tile_scale
+            for _ in range(start_z, end_z, -1):
+                tm = mercantile.parent(tm)
+                if tm.z == 0:
+                    break
+            tile_ids = [tm]
+        elif tile_scale in (0, 1):
+            tile_ids = [tm]
+        else:
+            tile_ids = [tm]
+            start_z = tm.z
+            end_z = tm.z + tile_scale
+            for _ in range(start_z, min(end_z, self.max_zoom)):
+                new_ids = []
+                for t in tile_ids:
+                    new_ids += mercantile.children(t)
+                tile_ids = new_ids
+        return [TileID(z=m.z, x=m.x, y=m.y) for m in tile_ids]
 
 
 @dataclass
@@ -251,7 +309,6 @@ class Tile:
             # and convert to (z, x, y)
             # This won't always catch an issue.
             if z > 30 or y > 2 ** z or x > 2 ** z:
-                print("Fucky input.")
                 self.tid = TileID(z=y, x=z, y=x)
 
     @property

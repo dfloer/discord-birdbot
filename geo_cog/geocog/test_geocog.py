@@ -42,11 +42,13 @@ def test_mapbox_geocode(input_string, output):
     [
         (0, 0, 0, "jpg90", "satellite", True, 2494988),
         (0, 0, 0, "jpg90", "satellite", True, 9515886),
+        (0, 0, 0, "jpg90", "satellite", True, 2480528),
     ],
 )
 def test_tile_composite(z, x, y, fmt, style, high_res, taxon_id):
-    mb = mapbox.get_tile(z, x, y, fmt, style, high_res)
-    gb = gbif.get_hex_map(z, x, y, taxon_id, high_res=False)
+    gb = gbif.get_hex_map(z, x, y, taxon_id, high_res=False)[0]
+    az, ax, ay = gb.tid
+    mb = mapbox.get_tile(z=az, x=ax, y=ay, fmt=fmt, style=style, high_res=high_res)
     mb.name = f"mb-{taxon_id}"
     gb.name = f"gb-{taxon_id}"
     # mb.save()
@@ -120,7 +122,6 @@ def test_ebird_map(species_code, zoom):
     out = ebird.get_range_map(species_code, zoom)
     with open(f"ebird_map-{species_code}_{zoom}.png", "wb") as f:
         out.save(f, "png")
-    assert False
 
 
 @pytest.mark.vcr("new")
@@ -189,3 +190,45 @@ def test_tile_id(tile_id, result_id):
 def test_tile_math(tile_id, center):
     test_tile = Tile(tile_id, img=Img.new("RGB", (256, 256)))
     assert test_tile.center == pytest.approx(center)
+
+
+@pytest.mark.parametrize(
+    "bbox, scale, result_ids",
+    [
+        ((-180, 19, -160, 23), 1, [TileID(z=3, x=0, y=3)]),
+        ((-180, 19, -160, 23), 0, [TileID(z=3, x=0, y=3)]),
+        ((-180, 19, -160, 23), -2, [TileID(z=1, x=0, y=0)]),
+        ((-180, 19, -160, 23), -16, [TileID(z=0, x=0, y=0)]),
+        (
+            (-180, 19, -160, 23),
+            2,
+            [
+                TileID(x=0, y=12, z=5),
+                TileID(x=1, y=12, z=5),
+                TileID(x=1, y=13, z=5),
+                TileID(x=0, y=13, z=5),
+                TileID(x=2, y=12, z=5),
+                TileID(x=3, y=12, z=5),
+                TileID(x=3, y=13, z=5),
+                TileID(x=2, y=13, z=5),
+                TileID(x=2, y=14, z=5),
+                TileID(x=3, y=14, z=5),
+                TileID(x=3, y=15, z=5),
+                TileID(x=2, y=15, z=5),
+                TileID(x=0, y=14, z=5),
+                TileID(x=1, y=14, z=5),
+                TileID(x=1, y=15, z=5),
+                TileID(x=0, y=15, z=5),
+            ],
+        ),
+        ((-154.94, 19.40, -154.87, 19.46), 16, [TileID(z=12, x=285, y=1822)]),
+    ],
+)
+def test_gbif_tile_id_from_bbox(bbox, scale, result_ids):
+    assert gbif.max_zoom == 12
+
+    tile_ids = gbif.tileid_from_bbox(bbox, scale)
+    print(tile_ids)
+    assert all(
+        [(a.z, a.x, a.y) == (b.z, b.x, b.y) for a, b in zip(tile_ids, result_ids)]
+    )
