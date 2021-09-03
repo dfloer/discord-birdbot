@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 from pprint import pprint
 import PIL.Image as Image
+import PIL.ImageDraw as ImageDraw
 from io import BytesIO
 import mercantile
 from collections import namedtuple
@@ -283,10 +284,20 @@ class eBirdMap:
         with open("mapbox_comp_mxn.png", "wb") as f:
             mapbox_image.save(f, "png")
         # This is our output map, but it needs a final crop.
+        (
+            swapped_image,
+            crop_area,
+            center,
+            bbox,
+            extra_tiles,
+            fill_crop,
+        ) = find_crop_bounds(ebird_img, out_size)
+        # If we've swapped the halves of the ebird map, also do this for the mapbox background before we composite them.
+        if swapped_image:
+            ebird_img = swapped_image.copy()
+            mapbox_image = swap_left_right(mapbox_image)
         new_img = comp(mapbox_image, ebird_img)
-        crop_area, center, bbox, extra_tiles, fill_crop = find_crop_bounds(
-            ebird_img, out_size
-        )
+        # This is our output map, but it still needs to be cropped to the proper area.
         new_img_crop = new_img.crop(fill_crop)
         return new_img_crop
 
@@ -466,20 +477,33 @@ def find_crop_bounds(image, output_size=512):
     Raises:
         NotRGBAError: We can only find pixels that contain data on RGBA images, as alpha = 0 is no data.
     Returns:
-        [tuple]: (crop_area, center, bbox, extra_tiles)
-            Where "crop_area" is the area this tile would be cropped to if it was output_size pixels on a side.
-            and "center" is the center of the area that was cropped.
-            and "bbox" is the maximum bounding box for the pixels in the source image.
-            and "extra_tiles" is whether or not extra tiles need to be grabbed in the form (left, upper, right, bottom).
-            and "fill_crop" is the bounding box for a crop that stays within the current image.
+        [tuple]: (swapped_image, crop_area, center, bbox, extra_tiles, fill_crop)
+            Where:
+            "swapped_image" is None if the image doesn't need to cross the antimeridian, otherwise an image with both sides of the antimerdian stuck together.
+            "crop_area" is the area this tile would be cropped to if it was output_size pixels on a side.
+            "center" is the center of the area that was cropped.
+            "bbox" is the maximum bounding box for the pixels in the source image.
+            "extra_tiles" is whether or not extra tiles need to be grabbed in the form (left, upper, right, bottom).
+                This does not currently handle what happens in we need extra tiles for a swap.
+            "fill_crop" is the bounding box for a crop that stays within the current image.
 
     """
     if image.mode != "RGBA":
         raise NotRGBAError
     bbox = image.getbbox()
-    # x_dim = bbox[2] - bbox[0]
-    # y_dim = bbox[3] - bbox[1]
+    x_dim = bbox[2] - bbox[0]
     size_x, size_y = image.size
+    swapped_image = None
+    # TODO: Make sure this works when the split is uneven. Will this even happen?
+    if x_dim > 512:
+        print("Wrapping Detected.")
+        swapped_image = swap_left_right(image)
+        image = swapped_image
+        # with open("swapped.png", 'wb') as f:
+        #     swapped_image.save(f, "png")
+
+    bbox = image.getbbox()
+    # y_dim = bbox[3] - bbox[1]
     center = (bbox[2] + bbox[0]) // 2, (bbox[3] + bbox[1]) // 2
     left = center[0] - output_size // 2
     upper = center[1] - output_size // 2
@@ -509,7 +533,42 @@ def find_crop_bounds(image, output_size=512):
         fill_left + output_size,
         fill_upper + output_size,
     )
-    return crop_area, center, bbox, extra_tiles, fill_crop
+    test_image = image.copy()
+    box_img = ImageDraw.Draw(test_image)
+    box_img.rectangle(fill_crop, outline=(0, 255, 255), fill=(0, 0, 0, 0))
+    with open("crop_area.png", "wb") as f:
+        test_image.save(f, "png")
+
+    return swapped_image, crop_area, center, bbox, extra_tiles, fill_crop
+
+
+def swap_left_right(image):
+    """
+    Swaps the left half and the right half of an image. The split is always at the halfway mark.
+    This is useful when the map crosses the anti-meridian.
+    Args:
+        image (Image): Image to swap.
+
+    Returns:
+        Image: The swapped image.
+    """
+    mode = image.mode
+    if mode == "RGBA":
+        new_image = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    else:
+        new_image = Image.new("RGB", image.size, (0, 0, 0))
+    size_x, size_y = image.size
+    left = image.crop((0, 0, size_x // 2, size_y))
+    right = image.crop((size_x // 2, 0, size_x, size_y))
+    # print("Wrapped split:", left.getbbox(), right.getbbox())
+    if mode == "RGBA":
+        new_image.alpha_composite(right, (0, 0))
+        new_image.alpha_composite(left, (size_x // 2, 0))
+    else:
+        new_image.paste(right, (0, 0))
+        new_image.paste(left, (size_x // 2, 0))
+    # print("swapped bbox:", new_image.getbbox())
+    return new_image
 
 
 class NotRGBAError(Exception):

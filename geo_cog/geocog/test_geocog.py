@@ -43,6 +43,7 @@ def test_mapbox_geocode(input_string, output):
         (0, 0, 0, "jpg90", "satellite", True, 2494988),
         (0, 0, 0, "jpg90", "satellite", True, 9515886),
         (0, 0, 0, "jpg90", "satellite", True, 2480528),
+        (0, 0, 0, "jpg90", "satellite", True, 5228134),
     ],
 )
 def test_tile_composite(z, x, y, fmt, style, high_res, taxon_id):
@@ -116,6 +117,8 @@ def test_map_transparency(species_code, zoom, transparancy):
         ("bushti", 3),
         ("pilwoo", 3),
         ("inirai1", 8),
+        ("bkpwar", 2),
+        ("baleag", 1),
     ],
 )
 def test_ebird_map(species_code, zoom):
@@ -222,6 +225,7 @@ def test_tile_math(tile_id, center):
             ],
         ),
         ((-154.94, 19.40, -154.87, 19.46), 16, [TileID(z=12, x=285, y=1822)]),
+        ((-178.20, -34.06, 8.65, 71.91), 1, [TileID(z=0, x=0, y=0)]),
     ],
 )
 def test_gbif_tile_id_from_bbox(bbox, scale, result_ids):
