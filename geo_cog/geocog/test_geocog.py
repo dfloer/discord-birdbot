@@ -1,10 +1,11 @@
 import pytest
 import io
 from .geo_utils import MapBox, Tile, GBIF, eBirdMap, TileID
-from .geo_utils import composite_mxn, get_token, composite_quad, comp, find_crop_bounds
+from .geo_utils import composite_mxn, get_token, composite_quad, comp, find_crop_bounds, find_line_sibling_tiles
 
 # from PIL.Image import Image as Img
 import PIL.Image as Img
+import mercantile
 
 mapbox = MapBox(get_token())
 gbif = GBIF()
@@ -116,9 +117,10 @@ def test_map_transparency(species_code, zoom, transparancy):
     [
         ("bushti", 3),
         ("pilwoo", 3),
-        ("inirai1", 8),
+        ("inirai1", 0),
         ("bkpwar", 2),
         ("baleag", 1),
+        ("grycat", 0),
     ],
 )
 def test_ebird_map(species_code, zoom):
@@ -236,3 +238,20 @@ def test_gbif_tile_id_from_bbox(bbox, scale, result_ids):
     assert all(
         [(a.z, a.x, a.y) == (b.z, b.x, b.y) for a, b in zip(tile_ids, result_ids)]
     )
+
+@pytest.mark.parametrize(
+    "tile_ids, expected_sibling_ids",
+    [
+        ([TileID(x=0, y=1, z=2), TileID(x=1, y=1, z=2), TileID(x=2, y=1, z=2)], [TileID(x=2, y=0, z=2), TileID(x=1, y=1, z=2), TileID(x=2, y=1, z=2), TileID(x=0, y=0, z=2), TileID(x=0, y=1, z=2), TileID(x=1, y=0, z=2)]),
+        ([TileID(x=0, y=1, z=2), TileID(x=0, y=2, z=2), TileID(x=0, y=3, z=2)], [TileID(x=1, y=3, z=2), TileID(x=1, y=1, z=2), TileID(x=1, y=2, z=2), TileID(x=0, y=1, z=2), TileID(x=0, y=2, z=2), TileID(x=0, y=3, z=2)]),
+        ([TileID(x=0, y=0, z=3), TileID(x=0, y=1, z=3)], [TileID(x=1, y=1, z=3), TileID(x=0, y=1, z=3), TileID(x=1, y=0, z=3), TileID(x=0, y=0, z=3)]),
+        ([TileID(x=0, y=0, z=4), TileID(x=1, y=0, z=4)], [TileID(x=0, y=0, z=4), TileID(x=1, y=1, z=4), TileID(x=0, y=1, z=4), TileID(x=1, y=0, z=4)]),
+        ([TileID(x=3, y=0, z=5), TileID(x=4, y=0, z=5)], [TileID(x=4, y=1, z=5), TileID(x=3, y=0, z=5), TileID(x=3, y=1, z=5), TileID(x=4, y=0, z=5)]),
+        ([TileID(x=3, y=3, z=6), TileID(x=3, y=4, z=6)], [TileID(x=3, y=4, z=6), TileID(x=2, y=3, z=6), TileID(x=3, y=3, z=6), TileID(x=2, y=4, z=6)]),
+        ([TileID(x=-4, y=160, z=8), TileID(x=-3, y=160, z=8)], [TileID(x=-4, y=160, z=8), TileID(x=-3, y=160, z=8), TileID(x=-4, y=161, z=8), TileID(x=-3, y=161, z=8)]),
+    ],
+)
+def test_find_filtered_siblings(tile_ids, expected_sibling_ids):
+    res = find_line_sibling_tiles([mercantile.Tile(t.x, t.y, t.z) for t in tile_ids])
+    print(res)
+    assert res == [mercantile.Tile(t.x, t.y, t.z) for t in expected_sibling_ids]

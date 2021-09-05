@@ -11,6 +11,7 @@ from random import randint
 sys.path.append(os.getcwd())
 from .geo_utils import MapBox, GBIF, Tile, eBirdMap, get_token
 from ebird_lookup import ebird_lookup as ebl
+import traceback
 
 
 class GeoCog(commands.Cog):
@@ -57,8 +58,9 @@ class GeoCog(commands.Cog):
         if all((scientific_name, taxon_id)):
 
             print(scientific_name, taxon_id)
-            mb = self.mapbox.get_tile(z, x, y, fmt, style, high_res)
-            gb = self.gbif.get_hex_map(z, x, y, taxon_id, high_res=False)
+            gb = self.gbif.get_hex_map(z, x, y, taxon_id, high_res=False)[0]
+            az, ax, ay = gb.tid
+            mb = self.mapbox.get_tile(az, ax, ay, fmt, style, high_res)
             t1 = mb.composite(gb)
             desc = f"Source: GBIF, Mapbox. GBIF taxon id: {taxon_id}."
             embed = discord.Embed(
@@ -101,7 +103,7 @@ class GeoCog(commands.Cog):
             title = f"eBird range map for: {common_name} (_{scientific_name}_)."
             try:
                 start = datetime.now()
-                res_img = self.ebird.get_range_map(species_code, 3)
+                res_img = self.ebird.get_range_map(species_code, 0)
                 d = BytesIO()
                 res_img.save(d, "png")
                 img = BytesIO(d.getvalue())
@@ -110,9 +112,12 @@ class GeoCog(commands.Cog):
                 embed = discord.Embed(title=title, description=desc, color=0x007F00)
                 file = discord.File(img, filename=f"{species_code}.png")
             except Exception:
+                traceback.print_exc()
                 pass
 
         if res_img:
             await ctx.send(file=file, embed=embed)
-        else:
+        elif not res:
             await ctx.send(f"Lookup of {arg} failed.")
+        else:
+            await ctx.send(f"Image generation failed.")

@@ -179,7 +179,7 @@ class GBIF:
         bbox = mercantile.Bbox(left=left, right=right, bottom=bottom, top=top)
         return bbox
 
-    def tileid_from_bbox(self, bbox, tile_scale=1):
+    def tileid_from_bbox(self, bbox, tile_scale=3):
         """
         Gets the tile_ids given a bounding box.
         Args:
@@ -214,6 +214,7 @@ class GBIF:
 
 @dataclass
 class eBirdMap:
+    max_zoom: int = 12
     """
     Generates an eBird range map.
     Note that this isn't using a documented API, and so could break at any time.
@@ -227,16 +228,82 @@ class eBirdMap:
         print("rbb: ", res.json())
 
         bbox = mercantile.Bbox(left=left, right=right, bottom=bottom, top=top)
-        # print("bbox: ", bbox)
+        print("tiles bbox: ", bbox)
         # print(f"bbox2: ({', '.join([str(x) for x in bbox])})")
         # target is to find 4 tiles that cover the bounded area. For a larger map, more tiles will be needed.
-        while True:
-            tile_ids = list(mercantile.tiles(*bbox, zoom))
-            if len(tile_ids) >= 4:
-                break
-            else:
-                zoom += 1
-        return tile_ids
+        # while True:
+        #     tile_ids = list(mercantile.tiles(*bbox, zoom))
+        #     if len(tile_ids) >= 4:
+        #         break
+        #     else:
+        #         zoom += 1
+        #     print(tile_ids)
+        # return tile_ids
+        res = bbox_to_tileids(bbox, zoom)
+        print("res:", res)
+        return res
+        # tile_id_per_zoom = {}
+        # temp = list(mercantile.tiles(*bbox, zoom))
+        # while True:
+        #     tile_ids = list(mercantile.tiles(*bbox, zoom))
+        #     tile_id_per_zoom[zoom] = tile_ids
+        #     print("tids:", tile_ids, "zoom:", zoom)
+        #     # if len(tile_ids) >= 4:
+        #     #     temp = tile_ids
+        #         # break
+        #     if len(tile_ids) > 9:
+        #         break
+        #     if zoom > self.max_zoom:
+        #         break
+        #     zoom += 1
+        # print("Tile history.")
+        # pprint(tile_id_per_zoom)
+        # # for zl, v in tile_id_per_zoom.items():
+        # #     tmp0 = [mercantile.bounds(a) for a in v]
+        # #     tmp1 = [(abs(mercantile.bounds(a).east - mercantile.bounds(a).west), abs(mercantile.bounds(a).north - mercantile.bounds(a).south)) for a in v]
+        # #     tmp2 = [(512 / a, 512 / b) for a, b in tmp1]
+        #     # print(f"zoom level: {zl}")
+        #     # pprint(tmp0)
+        #     # pprint(tmp1)
+        #     # pprint(tmp2)
+        # print({k: len(v) for k, v in tile_id_per_zoom.items()})
+        # print("=====================")
+        # for z, zt in tile_id_per_zoom.items():
+        #     dt = {}
+        #     x_min = min(t.x for t in zt)
+        #     x_max = max(t.x for t in zt)
+        #     y_min = min(t.y for t in zt)
+        #     y_max = max(t.y for t in zt)
+        #     x_dim = x_max - x_min + 1
+        #     y_dim = y_max - y_min + 1
+        #     print("zoom level:", z)
+        #     print(f"x=({x_min}, {x_max}), y=({y_min}, {y_max})")
+        #     print(f"x_dim={x_dim}, y_dim={y_dim}")
+        # print("=====================")
+
+        # # Find the first index over out threshold.
+        # tx = [k for k, v in tile_id_per_zoom.items() if len(v) > 9]
+        # print("tx", tx)
+        # # This is the last index under the threshold.
+        # last = min(tx) - 1
+        # temp = tile_id_per_zoom[last]
+        # print("last:", last)
+        # prev = last - 1
+        # print("checks:", prev in tile_id_per_zoom, last + 1 in tile_id_per_zoom)
+        # if prev in tile_id_per_zoom and last + 1 in tile_id_per_zoom and len(tile_id_per_zoom) != 1:
+        #     tids_previous_zoom = tile_id_per_zoom[prev]
+        #     print("lens:", len(tids_previous_zoom), len(temp),)
+        #     if len(tile_id_per_zoom[last]) / 4 == len(temp) or len(temp) >= 10:
+        #     # if len(temp) == 10:
+        #         res = find_line_sibling_tiles(tids_previous_zoom)
+        #         if res:
+        #             temp = res
+        #             print("res", res)
+        # temp = tile_id_per_zoom[last]
+
+        # # print("=======================")
+        # # # return tile_ids
+        # return temp
 
     def get_tiles(self, species_code, zoom):
         tile_ids = self.get_bbox(species_code, zoom)
@@ -248,6 +315,7 @@ class eBirdMap:
         print("rsid: ", rsid, "tiles: ", len(tile_ids))
         tiles = []
         for t in tile_ids:
+            print(t)
             tile = self.download_tile(zoom=t.z, x=t.x, y=t.y, rsid=rsid)
             # print("Tile: ", tile)
             tile.name = f"ebird-{species_code}"
@@ -294,6 +362,10 @@ class eBirdMap:
         ) = find_crop_bounds(ebird_img, out_size)
         # If we've swapped the halves of the ebird map, also do this for the mapbox background before we composite them.
         if swapped_image:
+            with open(f"swapped-{species_code}.png", 'wb') as f:
+                swapped_image.save(f, "png")
+            with open(f"no_swapped-{species_code}.png", 'wb') as f:
+                ebird_img.save(f, "png")
             ebird_img = swapped_image.copy()
             mapbox_image = swap_left_right(mapbox_image)
         new_img = comp(mapbox_image, ebird_img)
@@ -301,6 +373,108 @@ class eBirdMap:
         new_img_crop = new_img.crop(fill_crop)
         return new_img_crop
 
+def bbox_to_tileids(bbox, zoom, max_zoom=12, tile_scale=1):
+    print("bbox to tiles:", bbox, zoom)
+    try:
+        e = bbox.east
+        w = bbox.west
+        n = bbox.north
+        s = bbox.south
+    except AttributeError:
+        e = bbox.right
+        w = bbox.left
+        n = bbox.top
+        s = bbox.bottom
+    print("nesw:", n, e, s, w)
+    h_res = {}
+    h_alt = {}
+    crosses_antimeridian = abs(e) >= 179 and abs(w) >= 179
+    print("crosses am:", crosses_antimeridian)
+    for zoom_level in range(zoom, max_zoom + 1):
+        res = list(mercantile.tiles(east=e, north=n, west=w, south=s, zooms=zoom_level))
+        print("res", res)
+        res_alt = find_line_sibling_tiles(res)
+        print("res_alt", res_alt)
+        h_res[zoom_level] = res
+        h_alt[zoom_level] = res_alt
+        if len(res) >= tile_scale * 9:
+            break
+
+    last_idx = max(h_res)
+    best_idx = last_idx
+    use_alt = False
+    for k, v in h_res.items():
+        ha = h_alt[k]
+        print(f"{k}: res: {len(v)}, alt: {len(ha)}")
+        if len(v) > 9:
+            best_idx = last_idx - 1
+    if best_idx != last_idx:
+        print("t", len(h_res[last_idx]), len(h_res[best_idx]) * 4)
+        if len(h_res[last_idx]) == len(h_res[best_idx]) * 4:
+            print("4x case.")
+            use_alt = True
+            best_idx -= 1
+    if not crosses_antimeridian and len(h_res[best_idx]) % 8 ==0:
+        print("mod 8 case")
+        use_alt = True
+        best_idx -= 1
+    if len(h_res[best_idx]) * 2 == len(h_alt[best_idx]):
+        print("thin line case")
+        if len(h_alt[best_idx]) <= tile_scale * 9:
+            print("-> alt >= 9 case")
+            use_alt = True
+        else:
+            use_alt = True
+            best_idx -= 1
+
+    if not use_alt:
+        res = h_res[best_idx]
+    else:
+        res = h_alt[best_idx]
+
+    print("best:", best_idx)
+
+    return res
+
+
+def find_line_sibling_tiles(tile_ids):
+    """
+    This function finds the sibling tiles that are above/below or left/right of a line of tiles.
+    Which direction to take the extra tiles from depends on which direction shares the same parent tile.
+    Args:
+        tile_ids ([TileID]): tiles to find the filtered siblings for.
+    Returns:
+        [Tile]: The new tiles, or None if they aren't in a line.
+    """
+    x_min = min(t.x for t in tile_ids)
+    x_max = max(t.x for t in tile_ids)
+    y_min = min(t.y for t in tile_ids)
+    y_max = max(t.y for t in tile_ids)
+    x_dim = x_max - x_min + 1
+    y_dim = y_max - y_min + 1
+    if x_dim != 1 and y_dim != 1:
+        return []
+    if x_dim == y_dim == 1:
+        return []
+    print(f"x=({x_min}, {x_max}), y=({y_min}, {y_max})")
+    print(f"x_dim={x_dim}, y_dim={y_dim}")
+    # Find the siblings of the tile
+    sibling_tiles = set()
+    for t in tile_ids:
+        for s in mercantile.children(mercantile.parent(t)):
+            sibling_tiles.add(s)
+    print(f"sibling_tiles: {len(sibling_tiles)}")
+    filtered_siblings = []
+    for st in sibling_tiles:
+        if x_dim == 1:
+            if st.y in range(y_min, y_min + y_dim):
+                filtered_siblings += [st]
+        if y_dim == 1:
+            if st.x in range(x_min, x_min + x_dim):
+                filtered_siblings += [st]
+    print(f"filtered_siblings: {len(filtered_siblings)}")
+    print(filtered_siblings)
+    return filtered_siblings
 
 @dataclass
 class Tile:
@@ -492,18 +666,22 @@ def find_crop_bounds(image, output_size=512):
         raise NotRGBAError
     bbox = image.getbbox()
     x_dim = bbox[2] - bbox[0]
+    y_dim = bbox[3] - bbox[1]
     size_x, size_y = image.size
     swapped_image = None
     # TODO: Make sure this works when the split is uneven. Will this even happen?
     if x_dim > 512:
         print("Wrapping Detected.")
+        print(f"orig crop area: {x_dim}, {y_dim}")
+        print("orig bbox:", bbox)
         swapped_image = swap_left_right(image)
         image = swapped_image
-        # with open("swapped.png", 'wb') as f:
-        #     swapped_image.save(f, "png")
+
 
     bbox = image.getbbox()
-    # y_dim = bbox[3] - bbox[1]
+    x_dim = bbox[2] - bbox[0]
+    y_dim = bbox[3] - bbox[1]
+    print(f"minimal crop area: {x_dim}, {y_dim}")
     center = (bbox[2] + bbox[0]) // 2, (bbox[3] + bbox[1]) // 2
     left = center[0] - output_size // 2
     upper = center[1] - output_size // 2
@@ -511,7 +689,6 @@ def find_crop_bounds(image, output_size=512):
     lower = center[1] + output_size // 2
     crop_area = (left, upper, right, lower)
     # print("ideal crop:", crop_area)
-    # print(f"minimal crop area: {x_dim}, {y_dim}")
     extra_tiles = [0, 0, 0, 0]
     fill_left = left
     fill_upper = upper
@@ -538,6 +715,13 @@ def find_crop_bounds(image, output_size=512):
     box_img.rectangle(fill_crop, outline=(0, 255, 255), fill=(0, 0, 0, 0))
     with open("crop_area.png", "wb") as f:
         test_image.save(f, "png")
+
+    if swapped_image:
+        print("crop_area", crop_area)
+        print("center", center)
+        print("bbox", bbox)
+        print("extra_tiles", extra_tiles)
+        print("fill_crop", fill_crop)
 
     return swapped_image, crop_area, center, bbox, extra_tiles, fill_crop
 
