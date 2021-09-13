@@ -2,7 +2,7 @@ from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Dict, List, NamedTuple, TypedDict, Union
+from typing import Dict, List, NamedTuple, TypedDict, Union, Optional
 
 import requests
 
@@ -474,17 +474,36 @@ def asset_from_url(url: str, lazy_load: bool = True) -> "Asset":
         Asset: A new asset instance.
     """
     asset_id = get_asset_id(url)
-    return Asset(asset_id, lazy_load)
-
-
-def get_asset_id(url):
-    p = requests.utils.urlparse(url).path
-    if p == "":
-        return ""
+    if asset_id is not None:
+        return Asset(asset_id, lazy_load)
     else:
-        aid = p.split("/")[-1]
-        try:
-            aid = int(aid)
-        except ValueError:
-            return ""
+        return None
+
+
+def get_asset_id(url: str) -> Optional[int]:
+    """
+    Gets the asset ID from a URL, returns none if the URL was invalid.
+    Current validation:
+        - Make sure that it has the correct domain name.
+        - Make sure that asset appears somewere in the URL's path.
+        - Make sure that there are only two parts to the path.
+        - Make sure that the last part of the path is a numeric ID, optionally prefixed with only "ml".
+    Args:
+        url (str): URL to parse.
+    Returns:
+        The asset ID.
+    """
+    url_parts = requests.utils.urlparse(url)
+    if "macaulaylibrary.org" not in url_parts.netloc:
+        return None
+    p = url_parts.path
+    ps = [x for x in p.split("/") if x != ""]
+    if len(ps) != 2 or ps[0] != "asset":
+        return None
+    aid = ps[-1]
+    try:
+        aid = aid.lower().replace("ml", "")
+        aid = int(aid, 10)
+    except ValueError as e:
+        return None
     return aid

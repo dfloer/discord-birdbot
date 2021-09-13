@@ -69,6 +69,13 @@ class TestAsset:
             test_asset = self.mls.search_asset(asset_id=0)
 
     @pytest.mark.vcr("new")
+    def test_non_public(self):
+        # 123456 is a restricted item, at least when this test was written.
+        # It exists, but the search API can't find it.
+        with pytest.raises(mlp.Search.NoResults):
+            test_asset = self.mls.search_asset(asset_id=123456)
+
+    @pytest.mark.vcr("new")
     def test_audio_processing(self):
         with pytest.raises(mlp.APIBase.MediaStillProcessing):
             test_asset = self.mls.search_asset(asset_id=368985981)
@@ -219,3 +226,30 @@ class TestAsset:
         r = repr(test_asset)
         assert "asset_id=315200291, " in r
         assert f"common_name={common_name}, " in r
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "url, none_expected",
+        [
+            ("https://macaulaylibrary.org/123456", True),
+            ("https://macaulaylibrary.org/", True),
+            ("https://macaulaylibrary.org/asset/", True),
+            ("https://www.google.ca", True),
+            ("this isn't even a url", True),
+            ("this isn't even a url/asset/123456", True),
+            ("", True),
+            ("https://macaulaylibrary.org/asset123456", True),
+            ("https://macaulaylibrary.org/asset/asset/123456", True),
+            ("https://macaulaylibrary.org/asset/X23456", True),
+            ("https://macaulaylibrary.org/asset/mlx23456", True),
+            # And now some valid URLs.
+            ("https://macaulaylibrary.org/asset/307671311", False),
+            ("https://search.macaulaylibrary.org/asset/307671311", False),
+            ("https://www.macaulaylibrary.org/asset/307671311", False),
+            ("https://macaulaylibrary.org/asset/ML307671311", False),
+        ],
+    )
+    def test_asset_from_invalid_url(self, url, none_expected):
+        res = mlp.asset_from_url(url)
+        print("res:", res)
+        assert (res is None) if none_expected else (res is not None)
