@@ -1,0 +1,7 @@
+Attributions for the test files:
+
+night_owl.mp3:
+    Night Owl
+    - Broke For Free https://freemusicarchive.org/music/Broke_For_Free
+    Licensed under a Creative Commons Attribution (3.0) license: https://creativecommons.org/licenses/by/3.0/
+
