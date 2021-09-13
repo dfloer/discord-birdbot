@@ -236,12 +236,15 @@ class TestAsset:
             ("https://macaulaylibrary.org/asset/", True),
             ("https://www.google.ca", True),
             ("this isn't even a url", True),
-            ("this isn't even a url/asset/123456", True),
+            ("this isn't even a url either.org/asset/123456", True),
             ("", True),
             ("https://macaulaylibrary.org/asset123456", True),
             ("https://macaulaylibrary.org/asset/asset/123456", True),
             ("https://macaulaylibrary.org/asset/X23456", True),
             ("https://macaulaylibrary.org/asset/mlx23456", True),
+            ("https://macaulaylibrary.org.com/asset/123456", True),
+            ("https://macaulaylibrary.org.com/asset/123456", True),
+            ("https://macaulaylibrary.com.org/asset/123456", True),
             # And now some valid URLs.
             ("https://macaulaylibrary.org/asset/307671311", False),
             ("https://search.macaulaylibrary.org/asset/307671311", False),
@@ -250,6 +253,6 @@ class TestAsset:
         ],
     )
     def test_asset_from_invalid_url(self, url, none_expected):
-        res = mlp.asset_from_url(url)
+        res = mlp.get_asset_id(url)
         print("res:", res)
         assert (res is None) if none_expected else (res is not None)

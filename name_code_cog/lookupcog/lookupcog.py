@@ -57,6 +57,8 @@ class LookupCog(commands.Cog):
         # res = mlp.ml_assets_url_meta_filtered(url)
         # print(res)
         asset_id = mlp.get_asset_id(url)
+        if asset_id is None:
+            return discord.Embed(title="Error:", description="ML lookup failed, mis-formed URL?", color=0xFF0000), None, None
         try:
             res = self.ml_search.search_asset(asset_id=asset_id)
         except mlp.Search.NoResults:

@@ -326,7 +326,7 @@ class Asset(APIBase):
 
     @property
     def media_size(self) -> int:
-        """ Get the size of the media. If the media isn't downloaded, will use head to find it. """
+        """Get the size of the media. If the media isn't downloaded, will use head to find it."""
         if self._media_size is None:
             self._get_media_metadata()
         return self._media_size
@@ -494,7 +494,8 @@ def get_asset_id(url: str) -> Optional[int]:
         The asset ID.
     """
     url_parts = requests.utils.urlparse(url)
-    if "macaulaylibrary.org" not in url_parts.netloc:
+    ns = url_parts.netloc.split(".")
+    if ["macaulaylibrary", "org"] != ns[-2:]:
         return None
     p = url_parts.path
     ps = [x for x in p.split("/") if x != ""]
