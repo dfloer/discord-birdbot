@@ -24,7 +24,7 @@ class TestAudio:
 
         assert output.size < maximum_size
         assert output.size > 0
-        assert False
+        # assert False
 
     @pytest.mark.skip(reason="pydub's duration finding is non-deterministic.")
     @pytest.mark.parametrize(
@@ -72,7 +72,7 @@ class TestMLTranscode:
                 305988,
                 7600000,
                 True,
-            )
+            ),
         ],
     )
     def test_audio_transcode(self, asset_id, maximum_size, transcode):
@@ -92,6 +92,7 @@ class TestMLTranscode:
 
 class TestMisc:
     transcoder = AudioTranscoder()
+
     @pytest.mark.parametrize(
         "bitrate, expected_rate",
         [

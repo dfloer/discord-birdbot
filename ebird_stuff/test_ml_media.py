@@ -252,7 +252,12 @@ class TestAsset:
             ("https://macaulaylibrary.org/asset/ML307671311", False),
         ],
     )
-    def test_asset_from_invalid_url(self, url, none_expected):
+    def test_asset_id_from_invalid_url(self, url, none_expected):
         res = mlp.get_asset_id(url)
         print("res:", res)
         assert (res is None) if none_expected else (res is not None)
+
+    @pytest.mark.vcr("new")
+    def test_asset_id_from_invalid_url(self):
+        res = mlp.asset_from_url("bad url", lazy_load=True)
+        assert res is None

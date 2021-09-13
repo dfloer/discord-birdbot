@@ -29,7 +29,27 @@ InputMeta = namedtuple("InputMeta", "duration, size, bitrate")
 @dataclass
 class AudioTranscoder:
     logger: loguru.logger = setup_logger()
-    bitrate_steps: Tuple[int] = field(default=(8000, 16000, 24000, 32000, 40000, 48000, 64000, 80000, 96000, 112000, 128000, 160000, 192000, 224000, 320000), init=False, repr=False)
+    bitrate_steps: Tuple[int] = field(
+        default=(
+            8000,
+            16000,
+            24000,
+            32000,
+            40000,
+            48000,
+            64000,
+            80000,
+            96000,
+            112000,
+            128000,
+            160000,
+            192000,
+            224000,
+            320000,
+        ),
+        init=False,
+        repr=False,
+    )
 
     def __post__init__(self):
         # self.logger = self.logger()
@@ -48,7 +68,9 @@ class AudioTranscoder:
         return InputMeta(duration, size, bitrate)
 
     def transcode_audio_meta(
-        self, input_data: BytesIO, max_size: int = 7600000,
+        self,
+        input_data: BytesIO,
+        max_size: int = 7600000,
     ) -> NamedTuple:
         """
         runs transcode_audio, but returns data with metadata.
@@ -73,7 +95,9 @@ class AudioTranscoder:
         )
         return OutputMeta(audio_out, elapsed, out_size, transcode_status)
 
-    def transcode_audio(self, input_data: BytesIO, max_size: int = 7600000, force: bool = False) -> BytesIO:
+    def transcode_audio(
+        self, input_data: BytesIO, max_size: int = 7600000, force: bool = False
+    ) -> BytesIO:
         """
         Given an audio file and a maximum size, transcodes it to be under that maximum size.
         Returns the input if it doesn't need to be transcoded.
