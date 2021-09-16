@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+red-discordbot = "*"
+requests-cache = "*"
+loguru = "*"
+pydub = "*"
+requests = "*"
+discord = "*"
+typesense = "*"
+meilisearch = "*"
+
+[dev-packages]
+black = "*"
+pytest = "*"
+pytest-vcr = "*"
+vcrpy = "*"
+
+[requires]
+python_version = "3.9"
+
+[pipenv]
+allow_prereleases = true
