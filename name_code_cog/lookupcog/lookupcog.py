@@ -10,6 +10,7 @@ from ebird_lookup import ebird_lookup as ebl
 from ebird_stuff import ml_api as mlp
 from ebird_stuff import transcode
 
+from loguru import logger
 
 class LookupCog(commands.Cog):
     def __init__(self, bot):
@@ -35,6 +36,7 @@ class LookupCog(commands.Cog):
                 res = f"{arg} -> {', '.join(r['names'])}"
         except Exception:
             res = "Error: lookup failed."
+        logger.info(f"lookupcog: find_name: arg: {arg}, backend: {backend}, result: {res}")
         return res
 
     def find_codes(self, arg, backend):
@@ -46,6 +48,7 @@ class LookupCog(commands.Cog):
                 res = f"{r['name']} -> {', '.join(r['short_codes'])}"
         except Exception:
             res = "Error: lookup failed."
+        logger.info(f"lookupcog: find_codes: arg: {arg}, backend: {backend}, result: {res}")
         return res
 
     def audio_transcoder(self, audio):
@@ -53,6 +56,7 @@ class LookupCog(commands.Cog):
         return output
 
     def ml_asset_preview(self, url):
+        logger.info(f"lookupcog: ml_asset_preview: input url: {url}")
         base_url = "https://cdn.download.ams.birds.cornell.edu/api/v1/asset/"
         # res = mlp.ml_assets_url_meta_filtered(url)
         # print(res)

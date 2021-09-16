@@ -4,7 +4,10 @@ from datetime import datetime, timezone
 from io import BytesIO
 from typing import Dict, List, NamedTuple, TypedDict, Union, Optional
 
-import requests
+# import requests
+from requests.utils import urlparse as req_urlparse
+
+from ebird_stuff.ml_session import get, head
 
 LatLonT = NamedTuple  # [float, float]
 LatLon: LatLonT = namedtuple("LatLon", "lat, lon")
@@ -33,15 +36,6 @@ class Search(APIBase):
         default="https://cdn.download.ams.birds.cornell.edu/api/v1/asset/", init=False
     )
     checklist_url: str = field(default="https://ebird.org/view/checklist/", init=False)
-    public_ebird_key: str = "jfekjedvescr"
-
-    def get(self, url: str, params: dict = {}):
-        # error checking here would be good.
-        # self.logger.info(f"Getting: {url} with params: {params}.")
-        return requests.get(url, params=params)
-
-    def get_head(self, url: str, params: dict = {}):
-        return requests.head(url, params=params)
 
     def search_user(self, name: str) -> Dict[int, str]:
         """
@@ -56,7 +50,7 @@ class Search(APIBase):
         if len(name) < 3:
             return None
         url = f"https://search.macaulaylibrary.org/api/v1/find/user?fullName={name}"
-        res = self.get.json(url)
+        res = get.json(url)
         if res is None:
             return None
         else:
@@ -157,7 +151,7 @@ class Search(APIBase):
         'initialCursorMark': where in the search results to start.
             Don't set this directly, only use it for pagination. Will be in the result from a previous search.
         """
-        return self.get(self.base_url, params=params)
+        return get(self.base_url, params=params)
 
     def search(self, **params: dict) -> dict:
         return self._search(**params).json()
@@ -168,7 +162,7 @@ class Search(APIBase):
 
     def taxon_media_stats(self, species_code):
         url = f"https://search.macaulaylibrary.org/api/v1/stats/media-count?taxonCode={species_code}"
-        return self.get(url).json()
+        return get(url).json()
 
     def get_taxon_assets(
         self, taxon_code: str, sort_type: str = "quality"
@@ -373,7 +367,7 @@ class Asset(APIBase):
         Args:
             headers (Dict[str, str], optional): Headers, if they are known, otherwise gets headers.. Defaults to {}.
         """
-        headers = requests.head(self.media_url).headers
+        headers = head(self.media_url).headers
         content_type = headers["content-type"].split("/")[1]
         # These should be the formats eBird currently supports.
         # Note: disabled until this is better checked.
@@ -414,7 +408,7 @@ class Asset(APIBase):
         Downloads the media, or none if an error occurred.
         """
         url = self.media_url
-        res = requests.get(url)
+        res = get(url)
 
         # ML uses 476 to denote is still loading.
         if res.status_code == 476:
@@ -493,7 +487,7 @@ def get_asset_id(url: str) -> Optional[int]:
     Returns:
         The asset ID.
     """
-    url_parts = requests.utils.urlparse(url)
+    url_parts = req_urlparse(url)
     ns = url_parts.netloc.split(".")
     if ["macaulaylibrary", "org"] != ns[-2:]:
         return None

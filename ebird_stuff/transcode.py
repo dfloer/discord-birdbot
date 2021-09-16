@@ -8,18 +8,18 @@ from copy import copy
 from typing import Tuple
 from bisect import bisect
 
-import loguru
+from loguru import logger
 from pydub import AudioSegment
 from pydub import utils as pydub_utils
 
 
-def setup_logger():
-    logger = loguru.logger
-    # logger.remove(0)
-    logger.level("STATS", no=38)
-    logger.add(sys.stderr, format="[{time}] | {level} | {message}", level="INFO")
-    logger.add(sys.stderr, format="[{time}] | {level} | {message}", level="STATS")
-    return logger
+# def setup_logger():
+#     logger = loguru.logger
+#     logger.remove(0)
+#     logger.level("STATS", no=38)
+#     logger.add(sys.stderr, format="[{time}] | {level} | {message}", level="INFO")
+#     logger.add(sys.stderr, format="[{time}] | {level} | {message}", level="STATS")
+#     return logger
 
 
 OutputMeta = namedtuple("OutputMeta", "data, elapsed, size, transcoded")
@@ -28,7 +28,7 @@ InputMeta = namedtuple("InputMeta", "duration, size, bitrate")
 
 @dataclass
 class AudioTranscoder:
-    logger: loguru.logger = setup_logger()
+    # logger: logger = logger
     bitrate_steps: Tuple[int] = field(
         default=(
             8000,
@@ -51,9 +51,9 @@ class AudioTranscoder:
         repr=False,
     )
 
-    def __post__init__(self):
+    # def __post__init__(self):
         # self.logger = self.logger()
-        print(self.logger)
+        # print(self.logger)
 
     def input_meta(self, input_data: BytesIO):
         """
@@ -63,7 +63,7 @@ class AudioTranscoder:
         audio = AudioSegment.from_file(copy(input_data))
         size = len(input_data.getvalue())
         duration = audio.duration_seconds
-        self.logger.log("STATS", f"input_meta: duration {duration}s.")
+        logger.log("STATS", f"input_meta: duration {duration}s.")
         bitrate = int(round((size * 8) / duration, -3))
         return InputMeta(duration, size, bitrate)
 
@@ -90,7 +90,7 @@ class AudioTranscoder:
         out_size = len(audio_out.getvalue())
         transcode_status = True if in_size != out_size else False
 
-        self.logger.log(
+        logger.log(
             "STATS", f"audio_transcode: elapsed: {elapsed}s, size: {out_size}B."
         )
         return OutputMeta(audio_out, elapsed, out_size, transcode_status)
@@ -112,7 +112,7 @@ class AudioTranscoder:
         input_size = len(input_data.getvalue())
         # If the input is under the target size, short circuit the transcode.
         if input_size < max_size and not force:
-            self.logger.info("audio_transcode: skip")
+            logger.info("audio_transcode: skip")
             return input_data
         audio_out = self._perform_transcode(input_data, max_size)
         return audio_out
@@ -135,11 +135,11 @@ class AudioTranscoder:
         input_bitrate = int((input_size * 8) / duration)
         output_bitrate = int((target_size * 8) / duration)
         output_bitrate = self.bitrate_floor(output_bitrate)
-        self.logger.log(
+        logger.log(
             "STATS",
             f"audio_transcode: input size: {input_size}B, duration: {duration}s, bitrate: {input_bitrate}b/s",
         )
-        self.logger.log(
+        logger.log(
             "STATS",
             f"audio_transcode: output target: {target_size}B, duration: {duration}s, bitrate: {output_bitrate}b/s",
         )
@@ -147,7 +147,7 @@ class AudioTranscoder:
         audio_out = BytesIO()
         audio.export(audio_out, format=output_format, bitrate=str(output_bitrate))
         out_size = len(audio_out.getvalue())
-        self.logger.log("STATS", f"audio_transcode: output size: {out_size}B")
+        logger.log("STATS", f"audio_transcode: output size: {out_size}B")
         return audio_out
 
     def bitrate_floor(self, bitrate: int) -> int:
