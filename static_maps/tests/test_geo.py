@@ -1,6 +1,7 @@
 import pytest
 from pprint import pprint
 import PIL.Image as Img
+
 # import sys
 # import os
 
@@ -10,14 +11,19 @@ from static_maps.geo import BBoxBase, DynamicBBox, BBoxAlias, LatLonBBox, Point,
 import static_maps.geo as geo
 from static_maps.imager import Pixel
 
+
 class TestBboxAlias:
     @pytest.mark.parametrize(
         "in_bbox",
         [
-            {"left": ["kestrel"], "right": ["merlin"], "top": ["hobby"], "bottom": ["gyrfalcon"]},
+            {
+                "left": ["kestrel"],
+                "right": ["merlin"],
+                "top": ["hobby"],
+                "bottom": ["gyrfalcon"],
+            },
             {"left": ["kestrel", "merlin"], "right": ["peregrine"], "top": []},
             ({}),
-
         ],
     )
     def test_creation(self, in_bbox):
@@ -31,7 +37,6 @@ class TestBboxAlias:
         "in_bbox, exc",
         [
             ({"not a basename": ["pansy", "viola", "wittrockiana"]}, AttributeError),
-
         ],
     )
     def test_creation_fail(self, in_bbox, exc):
@@ -45,7 +50,10 @@ class TestBboxBase:
         "in_bbox",
         [
             (
-                1, 2, 3, 4,
+                1,
+                2,
+                3,
+                4,
             ),
         ],
     )
@@ -57,7 +65,11 @@ class TestBboxBase:
         "in_bbox",
         [
             (
-                1, 2, 3, 4, 5,
+                1,
+                2,
+                3,
+                4,
+                5,
             ),
         ],
     )
@@ -69,9 +81,33 @@ class TestBboxBase:
     @pytest.mark.parametrize(
         "in_bbox, comp",
         [
-            ((1, 2, 3, 4,), (1, 2, 3, 4)),
-            ((1, 2, 3, 4,), [1, 2, 3, 4]),
-            ((1, 2, 3, 4,), BBoxBase(1, 2, 3, 4)),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                (1, 2, 3, 4),
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                BBoxBase(1, 2, 3, 4),
+            ),
         ],
     )
     def test_equal(self, in_bbox, comp):
@@ -81,9 +117,33 @@ class TestBboxBase:
     @pytest.mark.parametrize(
         "in_bbox, comp",
         [
-            ((1, 2, 3, 0,), (1, 2, 3, 4)),
-            ((1, 2, 3, 0,), [1, 2, 3, 4]),
-            ((1, 2, 3, 0,), BBoxBase(1, 2, 3, 4)),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                (1, 2, 3, 4),
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                BBoxBase(1, 2, 3, 4),
+            ),
         ],
     )
     def test_not_equal(self, in_bbox, comp):
@@ -100,12 +160,29 @@ class TestBboxBase:
             (BBoxBase(1, 2, 3, 4), "x_dim", 2),
             (BBoxBase(1, 2, 3, 4), "y_dim", 2),
             (BBoxBase(1, 2, 3, 4), "xy_dims", (2, 2)),
-            (BBoxBase(0, 0, 0, 0,), "center", Point(0, 0)),
-            (BBoxBase(0, 0, 128, 128,), "center", Point(64, 64)),
+            (
+                BBoxBase(
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+                "center",
+                Point(0, 0),
+            ),
+            (
+                BBoxBase(
+                    0,
+                    0,
+                    128,
+                    128,
+                ),
+                "center",
+                Point(64, 64),
+            ),
             (BBoxBase(12, 45, 39, 124), "xy_dims", (27, 79)),
             (BBoxBase(12, 45, 39, 124), "center", Point(25.5, 84.5)),
             (BBoxBase(12, 45, 39, 124), "area", 2133),
-
         ],
     )
     def test_properties(self, in_bbox, prop, res):
@@ -115,6 +192,7 @@ class TestBboxBase:
 
     def test_area(self):
         assert BBoxBase(1, 2, 3, 4).area == 4
+
 
 class TestDynamicBbox:
     @pytest.mark.parametrize(
@@ -191,12 +269,29 @@ class TestDynamicBbox:
             (DynamicBBox(1, 2, 3, 4), "x_dim", 2),
             (DynamicBBox(1, 2, 3, 4), "y_dim", 2),
             (DynamicBBox(1, 2, 3, 4), "xy_dims", (2, 2)),
-            (DynamicBBox(0, 0, 0, 0,), "center", Point(0, 0)),
-            (DynamicBBox(0, 0, 128, 128,), "center", Point(64, 64)),
+            (
+                DynamicBBox(
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+                "center",
+                Point(0, 0),
+            ),
+            (
+                DynamicBBox(
+                    0,
+                    0,
+                    128,
+                    128,
+                ),
+                "center",
+                Point(64, 64),
+            ),
             (DynamicBBox(12, 45, 39, 124), "xy_dims", (27, 79)),
             (DynamicBBox(12, 45, 39, 124), "center", Point(25.5, 84.5)),
             (DynamicBBox(12, 45, 39, 124), "area", 2133),
-
         ],
     )
     def test_properties(self, in_bbox, prop, res):
@@ -206,6 +301,7 @@ class TestDynamicBbox:
 
     def test_area(self):
         assert DynamicBBox(1, 2, 3, 4).area == 4
+
 
 class TestLatLonBbox:
     @pytest.mark.parametrize(
@@ -223,14 +319,38 @@ class TestLatLonBbox:
         [
             True,
             False,
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "in_bbox, comp",
         [
-            ((-90.0, -45.0, 90.0, 45.0,), (-90.0, -45.0, 90.0, 45.0)),
-            ((1, 2, 3, 4,), [1, 2, 3, 4]),
-            ((1, 2, 3, 4,), LatLonBBox(1, 2, 3, 4)),
+            (
+                (
+                    -90.0,
+                    -45.0,
+                    90.0,
+                    45.0,
+                ),
+                (-90.0, -45.0, 90.0, 45.0),
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                LatLonBBox(1, 2, 3, 4),
+            ),
         ],
     )
     def test_comparison(self, in_bbox, comp, not_eq):
@@ -283,7 +403,11 @@ class TestLatLonBbox:
             (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "xy_dims", (0.1, 0.1)),
             (LatLonBBox(20.0, 40.0, 40.0, -40.0), "xy_dims", (20.0, 80.0)),
             (LatLonBBox(1.0, 2.0, 1.0, 4.0), "xy_dims", (0.0, 2.0)),
-            (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "center", LatLon(-54.80, -68.30)),
+            (
+                LatLonBBox(-54.75, -68.25, -54.85, -68.35),
+                "center",
+                LatLon(-54.80, -68.30),
+            ),
         ],
     )
     def test_properties(self, in_bbox, prop, res):
@@ -294,6 +418,7 @@ class TestLatLonBbox:
     def test_area_ni(self):
         with pytest.raises(NotImplementedError):
             _ = LatLonBBox(12, 45, 39, 124).area
+
 
 class TestLatLon:
     @pytest.mark.parametrize(
@@ -350,17 +475,14 @@ class TestLatLon:
     #     res = geo_utils.bounding_pixels_to_lat_lon(pbb, zoom, tile_size, truncate)
     #     assert res == ex
 
-class TestFindTiles:
 
+class TestFindTiles:
     @pytest.mark.parametrize(
         "bbox, start_zoom, end_zoom, name, test_image_fn",
         [
             (
                 LatLonBBox(
-                    east=175.781248,
-                    south=-42.032974,
-                    west=173.671878,
-                    north=-40.979897
+                    east=175.781248, south=-42.032974, west=173.671878, north=-40.979897
                 ),
                 0,
                 9,
@@ -444,13 +566,13 @@ class TestFindTiles:
                     west=63.4434420034802,
                     south=6.76762999637114,
                     east=109.257521493576,
-                    north=35.0816917166643
+                    north=35.0816917166643,
                 ),
                 0,
                 3,
                 "Rufous Treepie",
                 None,
-            )
+            ),
         ],
     )
     def test_bbox_to_tiles(self, bbox, start_zoom, end_zoom, name, test_image_fn):

@@ -1,34 +1,19 @@
-from collections import namedtuple
 from dataclasses import dataclass, field
-# from static_maps.geo_utils.geo_utils import LatLonBBox, LatLon
-import requests
 from io import BytesIO
+from typing import Dict, List, Optional, Tuple
 
-from typing import List, NamedTuple, Tuple, Optional, Dict
-# import sys
-# import os
+import requests
 
-
-# sys.path.append(os.getcwd())
-from static_maps.tiles import Tile, TileID, TileArray
-
-from static_maps.tiles import Tile, TileID, TileArray, Any
-from static_maps.imager import Image
 import static_maps.imager as imager
-# import static_maps.geo_utils.geo_utils as geo_utils
-from static_maps.geo import LatLonBBox, LatLon
-
-import pygbif as _pygbif
-
-def new_init(self, x):
-    super(_pygbif.maps.GbifMap, self).__init__()
-    self.response = x
-_pygbif.maps.GbifMap.__init__ = new_init
+from static_maps.geo import LatLon, LatLonBBox
+from static_maps.imager import Image
+from static_maps.tiles import Tile, TileArray, TileID
 
 
 def get_token():
     with open("creds.txt", "r") as f:
         return f.read().strip()
+
 
 @dataclass
 class BaseMap:
@@ -49,7 +34,8 @@ class BaseMap:
 
     def get_bbox_meta(self, bbox_url: str, url_params: Dict = {}) -> requests.Response:
         res = requests.get(self.base_url + bbox_url, params=url_params).json()
-        vals = {k: v for k, v in res if k in LatLonBBox.aliases}
+        bounding_values = LatLonBBox(0, 0, 0, 0).all_aliases
+        vals = {k.lower(): v for k, v in res.items() if k.lower() in bounding_values}
         return LatLonBBox(**vals)
 
     class AuthMissingError(Exception):
@@ -161,27 +147,27 @@ class GBIF(BaseMap):
     )
     # Currently doesn't support vector tiles.
     _tile_size: int = field(default=512, init=False, repr=True)
-    pygbif: Any = field(default=_pygbif, init=False, repr=True)
-
-    def __post__init__(self):
-        self._pygbif.caching(cache=False)
 
     @staticmethod
     def size_map(s: int) -> str:
         m = {256: "H", 512: "1", 1024: "2", 2048: "3", 4096: "4"}
         return f"@{m.get(s, '1')}x.png"
 
-    def get_tiles(self, taxon_key: int, tile_array: TileArray, mode: str = "hex", **params) -> TileArray:
+    def get_tiles(
+        self, taxon_key: int, tile_array: TileArray, mode: str = "hex", **params
+    ) -> TileArray:
         params["taxonKey"] = params.get("taxon_key", taxon_key)
         if "mode" in params:
             mode = params.pop("mode")
         funcmap = {"hex": self.get_hex_tile, "square": self.get_square_tile}
         func = funcmap.get(mode, self.get_hex_tile)
+
+        new_tilearray = TileArray()
         for tid in tile_array:
+            # TODO: this call can return None on HTTP errors. Handle that.
             tile = func(tile_id=tid, **params)
-            if tile:
-                tile_array[tid] = tile
-        return tile_array
+            new_tilearray[tid] = tile
+        return new_tilearray
 
     def _get_tile(self, tile_id: TileID = None, **params) -> Tile:
         """
@@ -195,23 +181,17 @@ class GBIF(BaseMap):
         params["style"] = params.get("style", self.map_defaults["style"])
         params["srs"] = params.get("srs", self.srs)
         # params["format"] = params.get("format", "@1x.png")
-        params["format"] = self.size_map(
-            params.get("tile_size", self.map_defaults["size"])
-        )
+        fmt = self.size_map(params.get("tile_size", self.map_defaults["size"]))
         tile_id = params.get("tile_id", tile_id)
         if tile_id is None:
             raise TypeError("tile_id required for map tile lookup.")
 
-        params["z"] = tile_id.z
-        params["x"] = tile_id.x
-        params["y"] = tile_id.y
-        taxon_key = params.get('taxonKey', 'None')
-
-        # print("gt_params", params)
-        gbif_map = self.pygbif.maps.map(**params)
-        resp = gbif_map.response
+        taxon_key = params.get("taxonKey", "None")
+        if params.get("tile_size", None):
+            params.pop("tile_size")
+        url = f"v2/map/occurrence/density/{tile_id.z}/{tile_id.x}/{tile_id.y}{fmt}"
+        resp = requests.get(self.base_url + url, params=params)
         print("gurl:", resp.url)
-
         sc = resp.status_code
         if sc in (200, 304):
             img = imager.image_from_response(resp)
@@ -281,49 +261,12 @@ class GBIF(BaseMap):
         params = {"taxonKey": taxon_key}
         url = "v2/map/occurrence/density/capabilities.json"
         metadata = self.get_bbox_meta(url, params)
-        left = metadata["maxLng"]
-        # if left == 0:
-        #     left = -180
-        # print("left", left)
-        right = metadata["minLng"]
-        top = metadata["maxLat"]
-        bottom = metadata["minLat"]
+        left = metadata.left
+        right = metadata.right
+        top = metadata.top
+        bottom = metadata.bottom
         bbox = LatLonBBox(left=left, top=top, right=right, bottom=bottom)
         return bbox
-
-
-
-#     def tileid_from_bbox(self, bbox, tile_scale=3):
-#         """
-#         Gets the tile_ids given a bounding box.
-#         Args:
-#             bbox (tuple): (left, upper, right, bottom) mercantile compatible bounding box.
-#             tile_scale (int, optional): Essentially how much zoom to add. +ve numbers zoom in, -ve zoom out. 0 treated as 1: no zoom change. Defaults to 1.
-#         Returns:
-#             (TileID): Tuple containing TileID objects.
-#         """
-#         tile_ids = []
-#         tm = mercantile.bounding_tile(*bbox)
-#         if tile_scale < 0:
-#             start_z = tm.z
-#             end_z = tm.z + tile_scale
-#             for _ in range(start_z, end_z, -1):
-#                 tm = mercantile.parent(tm)
-#                 if tm.z == 0:
-#                     break
-#             tile_ids = [tm]
-#         elif tile_scale in (0, 1):
-#             tile_ids = [tm]
-#         else:
-#             tile_ids = [tm]
-#             start_z = tm.z
-#             end_z = tm.z + tile_scale
-#             for _ in range(start_z, min(end_z, self.max_zoom)):
-#                 new_ids = []
-#                 for t in tile_ids:
-#                     new_ids += mercantile.children(t)
-#                 tile_ids = new_ids
-#         return [TileID(z=m.z, x=m.x, y=m.y) for m in tile_ids]
 
 
 @dataclass
@@ -343,7 +286,6 @@ class eBirdMap:
 
         bbox = LatLonBbox(left=left, right=right, bottom=bottom, top=top)
         print("tiles bbox: ", bbox)
-
 
     def get_tiles(self, species_code, zoom):
         tile_ids = self.get_bbox(species_code, zoom)

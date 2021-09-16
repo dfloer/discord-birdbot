@@ -1,16 +1,14 @@
-
 import math
 from collections import defaultdict, namedtuple
 from dataclasses import dataclass, field
-from typing import (Any, DefaultDict, Dict, Iterable, List, Numeric, Tuple,
-                    Union)
+from typing import Any, DefaultDict, Dict, Iterable, List, Tuple, Union
 
 import constants
 import mercantile
 
-Point = namedtuple("Point", ('x', 'y'))
-Pixel = namedtuple("Pixel", ('x', 'y'))
-LatLon = namedtuple("LatLon", ('lat', 'lon'))
+Point = namedtuple("Point", ("x", "y"))
+Pixel = namedtuple("Pixel", ("x", "y"))
+LatLon = namedtuple("LatLon", ("lat", "lon"))
 
 
 @dataclass
@@ -21,6 +19,7 @@ class BBoxAlias(dict):
     Usage notes:
         While the str() and repr() return sorted lists of mappings, the internal representation and reverse_map() is unsorted.
     """
+
     def __init__(self) -> None:
         bbox_aliases = {
             "top": ["maxy", "ymax"],
@@ -48,7 +47,7 @@ class BBoxAlias(dict):
         return d
 
     def __str__(self) -> str:
-        s = ''
+        s = ""
         rm = self.reverse_map
         for v in self.base_names:
             s += f"'{v}' aliases: {sorted(rm[v])}\n"
@@ -71,21 +70,27 @@ class BBoxBase:
     @property
     def tl(self) -> int:
         return self.point_type(self.left, self.top)
+
     @property
     def br(self) -> int:
         return self.point_type(self.right, self.bottom)
+
     @property
     def x_dim(self) -> int:
         return max(self.left, self.right) - min(self.left, self.right)
+
     @property
     def y_dim(self) -> int:
         return max(self.top, self.bottom) - min(self.top, self.bottom)
+
     @property
     def xy_dims(self) -> Tuple[int, int]:
         return self.x_dim, self.y_dim
+
     @property
     def area(self) -> int:
         return self.x_dim * self.y_dim
+
     @property
     def center(self) -> Any:
         c_x = self.left + (self.right - self.left) / 2
@@ -96,7 +101,11 @@ class BBoxBase:
         return iter((self.left, self.top, self.right, self.bottom))
 
     def __eq__(self, cmp: Any) -> bool:
-        if isinstance(cmp, (tuple, list)) and len(cmp) == 4 or isinstance(cmp, type(self)):
+        if (
+            isinstance(cmp, (tuple, list))
+            and len(cmp) == 4
+            or isinstance(cmp, type(self))
+        ):
             a, b, c, d = cmp
             if (a, b, c, d) == (self.left, self.top, self.right, self.bottom):
                 return True
@@ -120,6 +129,7 @@ class DynamicBBox(BBoxBase):
     Raises:
         AttributeError: If an attribute can't be get or set.
     """
+
     def __init__(self, *args, **kwargs):
         self._set_aliases_once(BBoxAlias())
         # print("args:", args)
@@ -133,7 +143,9 @@ class DynamicBBox(BBoxBase):
     def __setattr__(self, name: str, value: Any) -> None:
         new_name = self._alias(name)
         if not new_name:
-            raise AttributeError(f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)")
+            raise AttributeError(
+                f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)"
+            )
         self._set(new_name, value)
 
     def _get(self, name: str) -> Any:
@@ -151,12 +163,14 @@ class DynamicBBox(BBoxBase):
     def __getattr__(self, name: str) -> Any:
         new_name = self._alias(name)
         if not new_name:
-            raise AttributeError(f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)")
+            raise AttributeError(
+                f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)"
+            )
         attr_name = self.aliases.get(name)
         return object.__getattribute__(self, attr_name)
 
     def _alias(self, alias: str) -> Union[str, None]:
-        a = self._get('aliases')
+        a = self._get("aliases")
         return a.get(alias.lower(), None)
 
     # Note that this does not ensure that the aliases are the same, just the values of the bounding box itself.
@@ -164,25 +178,30 @@ class DynamicBBox(BBoxBase):
     def __eq__(self, cmp: Any) -> bool:
         return super().__eq__(cmp)
 
-    def from_dict(self, d: Dict[str, Numeric]) -> None:
+    def from_dict(self, d: Dict[str, Union[int, float]]) -> None:
         if len(d) != 4:
             raise ValueError("4 values required")
         for k, v in d.items():
             try:
                 self._set(k, v)
             except AttributeError:
-                raise AttributeError(f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)")
+                raise AttributeError(
+                    f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)"
+                )
+
 
 latlon_aliases = BBoxAlias()
 latlon_aliases.add(
     {
         "top": ["north", "maxlat"],
         "bottom": ["south", "minlat"],
-        "left": ["west", "minlon"],
-        "right": ["east", "maxlon"],
-        "xy_dims": ["range"]
+        "left": ["west", "minlon", "minlng"],
+        "right": ["east", "maxlon", "maxlng"],
+        "xy_dims": ["range"],
     }
 )
+
+
 @dataclass
 class LatLonBBox(DynamicBBox):
     srs: str = field(default="EPSG:3857", init=True)
@@ -194,6 +213,15 @@ class LatLonBBox(DynamicBBox):
             del kwargs["srs"]
         super()._set("aliases", latlon_aliases)
         super().__init__(*args, **kwargs)
+
+    @property
+    def all_aliases(self):
+        """Get a list of all the possible aliases. Useful for filtering larger dicts."""
+        s = set()
+        for x in self.aliases.reverse_map.values():
+            for y in x:
+                s.add(y)
+        return list(s)
 
     @property
     def area(self):
@@ -218,6 +246,7 @@ class PixBbox(BBoxBase):
         cx, cy = super().center
         return Pixel(round(cx), round(cy))
 
+
 def truncate_latlon_precision(latlon: LatLon, zoom: int) -> LatLon:
     """
     Truncates the lat and lon to a proper precision level given the pixel size.
@@ -232,7 +261,10 @@ def truncate_latlon_precision(latlon: LatLon, zoom: int) -> LatLon:
         (int, int): (lat, lon) truncated.
     """
     decimal_accuracy = math.floor(math.log(2 ** zoom, 10)) + 1
-    return LatLon(round(latlon.lat, decimal_accuracy), round(latlon.lon, decimal_accuracy))
+    return LatLon(
+        round(latlon.lat, decimal_accuracy), round(latlon.lon, decimal_accuracy)
+    )
+
 
 def lat_lon_to_pixels(latlon: LatLon, zoom: int, tile_size: int = 256) -> Pixel:
     """
@@ -260,7 +292,10 @@ def lat_lon_to_pixels(latlon: LatLon, zoom: int, tile_size: int = 256) -> Pixel:
     pixel_y = (shift + map_y) / resolution
     return Pixel(round(pixel_x), round(pixel_y))
 
-def pixels_to_lat_lon(pix: Pixel, zoom: int, tile_size: int = 256, truncate: bool = True) -> LatLon:
+
+def pixels_to_lat_lon(
+    pix: Pixel, zoom: int, tile_size: int = 256, truncate: bool = True
+) -> LatLon:
     """
     Calculates the pixel(x, y) -> (lat, lon) mapping.
     Args:
@@ -292,7 +327,9 @@ def pixels_to_lat_lon(pix: Pixel, zoom: int, tile_size: int = 256, truncate: boo
     return latlon
 
 
-def bounding_pixels_to_lat_lon(pixels_bbox: PixBbox, zoom: int, tile_size: int = 256, truncate: bool = True) -> LatLonBBox:
+def bounding_pixels_to_lat_lon(
+    pixels_bbox: PixBbox, zoom: int, tile_size: int = 256, truncate: bool = True
+) -> LatLonBBox:
     """
     Convenience function for pixels_to_lat_lon() that takes a pixel bbox instead of just two pixels.
     """
@@ -301,5 +338,7 @@ def bounding_pixels_to_lat_lon(pixels_bbox: PixBbox, zoom: int, tile_size: int =
     return LatLonBBox(*tl, *br)
 
 
-def bounding_box_to_tiles(bbox: LatLonBBox, secondary_check: bool = True) -> 'TileArray':
+def bounding_box_to_tiles(
+    bbox: LatLonBBox, secondary_check: bool = True
+) -> "TileArray":
     print(bbox)

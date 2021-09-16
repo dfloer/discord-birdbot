@@ -1,22 +1,17 @@
-import io
-from dataclasses import dataclass
-from pprint import pprint
-
 from typing import Any
 
-import mercantile
 import pytest
-
-
 from static_maps.geo import LatLonBBox
-from static_maps.mapper import BaseMap, MapBox, GBIF, get_token
-from static_maps.tiles import Tile, TileID, TileArray
+from static_maps.mapper import GBIF, BaseMap, MapBox, get_token
+from static_maps.tiles import Tile, TileArray, TileID
 
 mapbox = MapBox(token=get_token())
 gbif = GBIF()
 
+
 class TestMapBox:
     mapbox: MapBox = MapBox(token=get_token())
+
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
         "input_string, output",
@@ -46,7 +41,7 @@ class TestMapBox:
     def test_get_tiles(self, tid, fmt, style, high_res):
         res = self.mapbox.get_tile(tid, fmt=fmt, style=style, high_res=high_res)
 
-        assert res.resolution == int(high_res) + 1
+        assert res.resolution == 256 if not high_res else 512
         print("res:", res)
         res.save()
         assert type(res) == Tile
@@ -59,7 +54,7 @@ class TestMapBox:
                 TileID(15, 16826, 10770),
                 TileID(15, 16826, 10771),
                 TileID(15, 16827, 10770),
-                TileID(15, 16827, 10771)
+                TileID(15, 16827, 10771),
             ),
         ],
     )
@@ -69,12 +64,13 @@ class TestMapBox:
         for t in res_tiles.values():
             t.save()
 
+
 class TestGBIF:
     gbif: Any = GBIF()
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
-    "species, taxon_id",
+        "species, taxon_id",
         [
             ("Bushtit", ("Psaltriparus minimus", 2494988)),
             ("Barn Swallow", ("Hirundo rustica", 9515886)),
@@ -90,21 +86,21 @@ class TestGBIF:
     @pytest.mark.parametrize(
         "taxon_id, lat_lon_bbox",
         [
-            (2494988, LatLonBBox(14, 55, -127, 15)),
-            (5232445, LatLonBBox(10, 54, -161, 19)),
-            (5228134, LatLonBBox(0, -38, -13, -38)),
+            (2494988, LatLonBBox(right=14, top=55, left=-127, bottom=15)),
+            (5232445, LatLonBBox(right=10, top=54, left=-161, bottom=19)),
+            (5228134, LatLonBBox(right=0, top=-38, left=-13, bottom=-38)),
         ],
     )
     def test_get_bbox(self, taxon_id, lat_lon_bbox):
         res = self.gbif.get_bbox(taxon_id)
         assert res == lat_lon_bbox
 
-
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
         "map_type",
         [
-            "hex", "square",
+            "hex",
+            "square",
         ],
     )
     @pytest.mark.parametrize(
@@ -117,26 +113,32 @@ class TestGBIF:
     )
     def test_get_map_tile(self, taxon_id, tile_size, map_type):
         if map_type == "hex":
-            gb = self.gbif.get_hex_tile(tile_id=TileID(0, 0, 0), taxonKey=taxon_id, tile_size=tile_size)
+            gb = self.gbif.get_hex_tile(
+                tile_id=TileID(0, 0, 0), taxonKey=taxon_id, tile_size=tile_size
+            )
         elif map_type == "square":
-            gb = self.gbif.get_square_tile(tile_id=TileID(0, 0, 0), taxonKey=taxon_id, tile_size=tile_size)
+            gb = self.gbif.get_square_tile(
+                tile_id=TileID(0, 0, 0), taxonKey=taxon_id, tile_size=tile_size
+            )
         # else:
         #     gb = self.gbif.get_tile(tile_id=TileID(0, 0, 0), taxonKey=taxon_id, tile_size=tile_size)
-        print("gb", gb)
         gb.name = f"test_{taxon_id}-{map_type}-s{tile_size // 512 if tile_size is not None else 1}"
-        assert gb
+        exp = tile_size if tile_size is not None else 512
+        assert gb.resolution == exp
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
         "map_type",
         [
-            "hex", "square",
+            "hex",
+            "square",
         ],
     )
     @pytest.mark.parametrize(
         "taxon_id, tile_ids_expected_image",
         [
-            (2482552,
+            (
+                2482552,
                 {
                     TileID(7, 121, 26): True,
                     TileID(7, 121, 27): True,
@@ -157,11 +159,12 @@ class TestGBIF:
             print("IE", k, tile_ids_expected_image[k])
             print("timg", t.img)
             # assert t.img.getbbox() is not None
-        assert False
+        # assert False
 
 
 class TestGBIFOther:
     gbif: GBIF = GBIF()
+
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
         "species, taxon_id",
@@ -178,6 +181,7 @@ class TestGBIFOther:
         res = self.gbif.lookup_species(species)
         assert res == taxon_id
 
+
 class TestCombinedGBIF:
     gbif: GBIF = GBIF()
     mapbox: MapBox = MapBox(token=get_token())
@@ -190,10 +194,10 @@ class TestCombinedGBIF:
                 2493091,
                 (
                     (
-                    TileID(15, 16826, 10770),
-                    TileID(15, 16826, 10771),
-                    TileID(15, 16827, 10770),
-                    TileID(15, 16827, 10771)
+                        TileID(15, 16826, 10770),
+                        TileID(15, 16826, 10771),
+                        TileID(15, 16827, 10770),
+                        TileID(15, 16827, 10771),
                     )
                 ),
             ),
@@ -207,25 +211,15 @@ class TestCombinedGBIF:
 
         mapbox_tiles = self.mapbox.get_tiles(mpta)
         gbif_tiles = self.gbif.get_tiles(taxon_id, gbta)
-        for tile in gbif_tiles.values():
-            tile.save()
         c_tiles = mapbox_tiles._composite_layer(gbif_tiles)
         c_tiles.name = "gbif+mapbox"
-        for t in c_tiles.values():
-            assert t.img
-
-        print(c_tiles)
-        for t in c_tiles.values():
-            t.name = "gbif+mapbox"
-            t.save()
-
         final_image = c_tiles._composite_all()
         final_image.save(f"gbif+mapbox-{taxon_id}-final.png")
+
 
 class TestFullMapGBIF:
     gbif: GBIF = GBIF()
     mapbox: MapBox = MapBox(token=get_token())
-
 
     # @pytest.mark.vcr("new")
     # @pytest.mark.parametrize(
@@ -277,6 +271,7 @@ class TestFullMapGBIF:
     #     t1.name = f"test_tile_comp-{taxon_id}"
     #     t1.save()
     #     # Do something to make sure the composition worked correctly. Should probably be using saved tiles too.
+
 
 # @pytest.mark.vcr("new")
 # @pytest.mark.parametrize(

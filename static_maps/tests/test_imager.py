@@ -9,7 +9,7 @@ from static_maps.imager import Pixel, PixBbox, Image
 from static_maps import imager
 
 
-def create_blank_image(size=256, mode='RGB'):
+def create_blank_image(size=256, mode="RGB"):
     return Image.new(mode, (size, size))
 
 
@@ -18,7 +18,10 @@ class TestBbox:
         "in_bbox",
         [
             (
-                1, 2, 3, 4,
+                1,
+                2,
+                3,
+                4,
             ),
         ],
     )
@@ -30,7 +33,10 @@ class TestBbox:
         "in_bbox",
         [
             (
-                1, 2, 3, 4,
+                1,
+                2,
+                3,
+                4,
             ),
         ],
     )
@@ -44,9 +50,33 @@ class TestBbox:
     @pytest.mark.parametrize(
         "in_bbox, comp",
         [
-            ((1, 2, 3, 4,), (1, 2, 3, 4)),
-            ((1, 2, 3, 4,), [1, 2, 3, 4]),
-            ((1, 2, 3, 4,), PixBbox(1, 2, 3, 4)),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                (1, 2, 3, 4),
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    4,
+                ),
+                PixBbox(1, 2, 3, 4),
+            ),
         ],
     )
     def test_equal(self, in_bbox, comp):
@@ -56,9 +86,33 @@ class TestBbox:
     @pytest.mark.parametrize(
         "in_bbox, comp",
         [
-            ((1, 2, 3, 0,), (1, 2, 3, 4)),
-            ((1, 2, 3, 0,), [1, 2, 3, 4]),
-            ((1, 2, 3, 0,), PixBbox(1, 2, 3, 4)),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                (1, 2, 3, 4),
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                (
+                    1,
+                    2,
+                    3,
+                    0,
+                ),
+                PixBbox(1, 2, 3, 4),
+            ),
         ],
     )
     def test_not_equal(self, in_bbox, comp):
@@ -68,8 +122,24 @@ class TestBbox:
     @pytest.mark.parametrize(
         "in_bbox, center",
         [
-            ((0, 0, 0, 0,), (0, 0)),
-            ((0, 0, 128, 128,), (64, 64)),
+            (
+                (
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+                (0, 0),
+            ),
+            (
+                (
+                    0,
+                    0,
+                    128,
+                    128,
+                ),
+                (64, 64),
+            ),
             ((12, 45, 39, 124), (26, 84)),
         ],
     )
@@ -85,7 +155,7 @@ class TestImage:
     # @staticmethod
     def open_image(self, fn):
         p = self.test_img_path / Path(fn)
-        with open(p, 'rb') as f:
+        with open(p, "rb") as f:
             return Image.open(f).copy()
 
     @staticmethod
@@ -104,15 +174,18 @@ class TestImage:
         background_rgb = self.open_image("background_RGB.png")
         background_rgba = self.open_image("background_RGBA.png")
 
-        res1 = imager.transparency_composite(a=background_rgb, b=foreground, t=transparency)
-        res2 = imager.transparency_composite(a=background_rgba, b=foreground, t=transparency)
+        res1 = imager.transparency_composite(
+            a=background_rgb, b=foreground, t=transparency
+        )
+        res2 = imager.transparency_composite(
+            a=background_rgba, b=foreground, t=transparency
+        )
 
         exp1 = self.open_image(f"result-RGB_comp-trans_{transparency}.png")
         exp2 = self.open_image(f"result-RGBA_comp-trans_{transparency}.png")
 
         assert self.compare_images(res1, exp1)
         assert self.compare_images(res2, exp2)
-
 
     def test_monkeypatch_getbbox(self):
         res = Image.new("RGBA", (256, 256), (255, 255, 255, 255))
@@ -136,11 +209,14 @@ class TestImage:
         "images, result",
         [
             (
-                ('test_comp_2x2-0_0011_768.png',
-                'test_comp_2x2-1_1021_768.png',
-                'test_comp_2x2-2_0112_768.png',
-                'test_comp_2x2-3_1122_768.png'),
-                "result-composite_2x2-1536.png"),
+                (
+                    "test_comp_2x2-0_0011_768.png",
+                    "test_comp_2x2-1_1021_768.png",
+                    "test_comp_2x2-2_0112_768.png",
+                    "test_comp_2x2-3_1122_768.png",
+                ),
+                "result-composite_2x2-1536.png",
+            ),
         ],
     )
     def test_composite_split_2x2(self, images, result):

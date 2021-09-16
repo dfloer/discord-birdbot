@@ -169,7 +169,7 @@ class TestTile:
             assert tile.tid == tid
             assert tile.img == img
             assert tile.name == name
-            assert tile.resolution == tile_size // 256
+            assert tile.resolution == tile_size
 
     @pytest.mark.parametrize(
         "test_tile, m_tile",
@@ -219,7 +219,6 @@ class TestTile:
     ],
 )
 class TestTileArray:
-
     def create_tilearray(self, tids, imgs):
         tile_array = TileArray()
         for tid, img in zip(tids, imgs):
@@ -234,7 +233,9 @@ class TestTileArray:
         pprint(tile_array)
 
     def test_creation_constructor(self, tile_ids, images):
-        tile_array = TileArray().from_dict({TileID(k): Tile(TileID(k), v) for k, v in zip(tile_ids, images)})
+        tile_array = TileArray().from_dict(
+            {TileID(k): Tile(TileID(k), v) for k, v in zip(tile_ids, images)}
+        )
         for tid in tile_ids:
             assert tid in tile_array
         pprint(tile_array)
@@ -277,7 +278,7 @@ class TestTileArray:
             ([1, 2], None),
             ([constants.max_zoom + 1], TileArray.ZoomRangeError),
             ([constants.min_zoom - 1], TileArray.ZoomRangeError),
-        ]
+        ],
     )
     def test_change_zoom_empty(self, tile_ids, images, zoom, exc):
         print("zoom", zoom)

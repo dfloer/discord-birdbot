@@ -12,6 +12,8 @@ requests = "*"
 discord = "*"
 typesense = "*"
 meilisearch = "*"
+pillow = "*"
+mercantile = "*"
 
 [dev-packages]
 black = "*"

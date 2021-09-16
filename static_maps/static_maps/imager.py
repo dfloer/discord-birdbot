@@ -18,10 +18,13 @@ ImageQuad = namedtuple("ImageQuad", "tl, tr, bl, br")
 Image = BaseImage
 Image.Image._getbbox = Image.Image.getbbox
 
+
 def new_getbbox(self: Any) -> "PixBbox":
     r = self._getbbox()
     print("r", r)
     return PixBbox(*r) if r is not None else r
+
+
 Image.Image.getbbox = new_getbbox
 
 Pixel = namedtuple("Pixel", "x, y")
@@ -51,7 +54,7 @@ def transparency_composite(a: "Image", b: "Image", t: int = 200) -> "Image":
     Returns:
         Image: Composited image.
     """
-    print(a, b)
+    # print(f"trans_comp:\na: {a}\nb: {b}")
     t = max(min(t, 255), 0)
     if b.mode != "RGBA":
         raise NotRGBAError
@@ -356,7 +359,8 @@ def quad_split(input_image: Image, fpath: str = None) -> NamedTuple:
             x.save(fpath + f"-{idx}_{suffix}_{h}.png", "png")
     return ImageQuad(*res)
 
-def blank(mode: str = "RGB", size: Tuple[int, int] = (512, 512)) -> 'Image':
+
+def blank(mode: str = "RGB", size: Tuple[int, int] = (512, 512)) -> "Image":
     """
     Convenience function that creates a blank image.
     """

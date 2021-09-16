@@ -1,6 +1,6 @@
 import warnings
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -16,6 +16,7 @@ from static_maps.imager import Image
 
 
 Point = namedtuple("Point", ("x", "y"))
+
 
 @dataclass(frozen=True)
 class BaseID:
@@ -82,23 +83,22 @@ class TileID(BaseID):
     def urlform(self):
         return f"{self.z}/{self.x}/{self.y}"
 
-
     @property
-    def parent(self) -> 'TileID':
+    def parent(self) -> "TileID":
         """
         Return the TileId for the parent.
         """
         return TileID(mercantile.parent(self.asmrcantile))
 
     @property
-    def children(self) -> List['TileID']:
+    def children(self) -> List["TileID"]:
         """
         Returns a list of this tile's 4 child tile ids.
         """
         return [TileID(mt) for mt in mercantile.children(self.asmrcantile)]
 
     @property
-    def siblings(self) -> List['TileID']:
+    def siblings(self) -> List["TileID"]:
         """
         Returns a list of this tile's siblings.
         """
@@ -116,29 +116,42 @@ class Tile:
     resolution: int = 256
     blank: bool = True
 
-    # def __post_init__(self) -> None:
-    #     # print("self.img", self.img)
-    #     if self.img is None:
-    #         self.img = imager.blank(), None
-    #     self.resolution = self.img.size[0]
+    def __post_init__(self):
+        self.resolution = self.img.size[0]
 
     @property
     def size(self) -> Tuple[int, int]:
         return self.img.size
 
     def save(self, path: Path = Path(".")) -> None:
-        b = '_b' if self.blank else ''
+        b = "_b" if self.blank else ""
         fn = path / Path(
             f"{self.name}_z{self.tid.z}-x{self.tid.x}-y{self.tid.y}_r{self.resolution}{b}.png"
         )
         self.img.save(fn, "png")
 
-    @img.setter
-    def img(self, im: 'Image', blank: bool = False) -> None:
-        if blank:
-            self.blank = True
-        self.resolution = im.size[0]
-        object.__setattr__('img', im)
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        The purpose of this function is because there can't be a @setter on a field.
+        And it'd be useful to have tile.img = img, True to ensure the tiles knows this image is blank.
+        Maybe there's a better way of doing this, but there wasn't an obvious way to do this.
+        Consider the below essentially:
+        @img.setter
+        def img(self, img, blank=True):
+            ...
+        """
+        if name == "img":
+            img = value
+            self.blank = False
+            blank = False
+            if isinstance(value, tuple):
+                img, blank = value
+            if blank:
+                self.blank = blank
+            self.resolution = img.size[0]
+            object.__setattr__(self, "img", img)
+        else:
+            object.__setattr__(self, name, value)
 
     @property
     def asbytes(self) -> bytes:
@@ -162,14 +175,14 @@ class Tile:
         return geo.LatLonBBox(mercantile.bounds(self.asmercantile))
 
     @property
-    def parent(self) -> 'Tile':
+    def parent(self) -> "Tile":
         """
         Return the TileId for the parent.
         """
         return self.blank(self.tid.parent)
 
     @property
-    def children(self) -> 'TileArray':
+    def children(self) -> "TileArray":
         """
         Returns an empty TileArray of this tile's 4 child tile ids.
         """
@@ -178,7 +191,7 @@ class Tile:
         return ta.from_dict(tiles)
 
     @property
-    def siblings(self) -> 'TileArray':
+    def siblings(self) -> "TileArray":
         """
         Returns an empty TileArray of this tile's siblings.
         """
@@ -209,7 +222,7 @@ class Tile:
     def __len__(self) -> int:
         return 0 if self.blank else self.resolution
 
-    def composite_image(self, foreground_tile: 'Tile') -> 'Tile':
+    def composite_image(self, foreground_tile: "Tile") -> "Tile":
         new_img = imager.transparency_composite(self.img, foreground_tile.img)
         return Tile(self.tid, img=new_img)
 
@@ -220,6 +233,7 @@ class TileArray(dict):
     Stores a 2d array of tiles. Tiles are accessed by their TileID.
     Internally, stores data as a dictionary, with the key being a TileID and the value being the Tile.
     """
+
     zoom_level: int = None
     name: str = "TileArray"
 
@@ -229,7 +243,7 @@ class TileArray(dict):
             raise self.MixedZoomError
 
     # Couldn't figure out a clean way to do this in init, so it's here.
-    def from_dict(self, d: Dict[TileID, Tile]) -> 'TileArray':
+    def from_dict(self, d: Dict[TileID, Tile]) -> "TileArray":
         for k, v in d.items():
             self[k] = v
         return self
@@ -303,7 +317,7 @@ class TileArray(dict):
     def ids_to_mercantiles(self) -> List[mercantile.Tile]:
         return [t.asmercantile for t in self.keys()]
 
-    def find_line_sibling_tile_ids(self) -> Optional['TileArray']:
+    def find_line_sibling_tile_ids(self) -> Optional["TileArray"]:
         """
         This function finds the sibling tiles that are above/below or left/right of a line of tiles.
         Which direction to take the extra tiles from depends on which direction shares the same parent tile.
@@ -373,7 +387,7 @@ class TileArray(dict):
         idx_imgs = {(tid.x, tid.y): img.img for tid, img in self.items()}
         return imager.composite_mxn(idx_imgs)
 
-    def _composite_layer(self, foreground_ta: 'TileArray') -> 'TileArray':
+    def _composite_layer(self, foreground_ta: "TileArray") -> "TileArray":
         """
         Composites a given tiliearray over this tile array.
         If foreground tiles fall outside the lower layer, they are ignored.
@@ -386,12 +400,13 @@ class TileArray(dict):
         x_range = range(self.x_min, self.x_max + 1)
         y_range = range(self.y_min, self.y_max + 1)
         z = self.zoom_level
-        if z != foreground_ta.zoom_level:
-            raise self.MixedZoomError("Can't composite with different zoom levels.")
+        fg_z = foreground_ta.zoom_level
+        if z != fg_z:
+            raise self.MixedZoomError(
+                f"Can't composite with different zoom levels (bg={z}, fg={fg_z})"
+            )
         tids_check = [TileID(z, x, y) for x in x_range for y in y_range]
-        print("tids_check:", tids_check)
         fg_tids = [x for x in foreground_ta.keys() if x in tids_check]
-        print("fg_tids", fg_tids)
         result = TileArray()
         for tid, tile in self.items():
             if tid in fg_tids:
@@ -401,10 +416,9 @@ class TileArray(dict):
                 result[tid] = tile
         for tid in fg_tids:
             result[tid] = foreground_ta[tid]
-        print(len(result), len(self), len(foreground_ta))
         return result
 
-    def composite_layers_out(self, foreground_ta: 'TileArray') -> 'Image':
+    def composite_layers_out(self, foreground_ta: "TileArray") -> "Image":
         """
         Composites two tilearrays together and produces a final image.
         Args:
@@ -424,3 +438,37 @@ class TileArray(dict):
 
     class ZoomRangeError(Exception):
         pass
+
+
+def tileid_from_bbox(self, bbox: geo.LatLonBBox, tile_scale: int = 1) -> List[TileID]:
+    """
+    Gets the tile_ids given a bounding box.
+    Args:
+        bbox (tuple): (left, upper, right, bottom) mercantile compatible bounding box.
+        tile_scale (int, optional): Essentially how much zoom to add. +ve numbers zoom in, -ve zoom out. 0 treated as 1: no zoom change. Defaults to 1.
+    Returns:
+        List[TileID]: TileIDs covering the box.
+    """
+    tile_ids = []
+    mt = mercantile.bounding_tile(*bbox)
+    tm = TileID(z=mt.z, x=mt.x, y=mt.y)
+    if tile_scale < 0:
+        start_z = tm.z
+        end_z = tm.z + tile_scale
+        for _ in range(start_z, end_z, -1):
+            tm = tm.parent()
+            if tm.z == 0:
+                break
+        tile_ids = [tm]
+    elif tile_scale in (0, 1):
+        tile_ids = [tm]
+    else:
+        tile_ids = [tm]
+        start_z = tm.z
+        end_z = tm.z + tile_scale
+        for _ in range(start_z, min(end_z, self.max_zoom)):
+            new_ids = []
+            for t in tile_ids:
+                new_ids += t.children()
+            tile_ids = new_ids
+    return [TileID(z=m.z, x=m.x, y=m.y) for m in tile_ids]
