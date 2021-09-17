@@ -1,9 +1,12 @@
 from typing import Any
 
+from pathlib import Path
+
 import pytest
 from static_maps.geo import LatLonBBox
 from static_maps.mapper import GBIF, BaseMap, MapBox, get_token
 from static_maps.tiles import Tile, TileArray, TileID
+from static_maps.imager import Image
 
 mapbox = MapBox(token=get_token())
 gbif = GBIF()
@@ -221,29 +224,27 @@ class TestFullMapGBIF:
     gbif: GBIF = GBIF()
     mapbox: MapBox = MapBox(token=get_token())
 
-    # @pytest.mark.vcr("new")
-    # @pytest.mark.parametrize(
-    #     "taxon_id",#, expected_bbox",
-    #     [
-    #         (
-    #             2493091,
-
-    #             # (
-    #             #     (
-    #             #     TileID(15, 16826, 10770),
-    #             #     TileID(15, 16826, 10771),
-    #             #     TileID(15, 16827, 10770),
-    #             #     TileID(15, 16827, 10771)
-    #             #     )
-    #             # ),
-    #         ),
-    #     ],
-    # )
-    # def test_get_bbox(self, taxon_id, expected_bbox):
-    #     pass
-    # out4 = _pygbif.maps.map(z=10, x=512, y=512)
-    # out5 = _pygbif.maps.map(z=10, x=10, y=10)
-    # assert out5.response.status_code == 200
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "taxon_id",  # , expected_bbox",
+        [
+            (
+                2493091,
+                # (
+                #     (
+                #     TileID(15, 16826, 10770),
+                #     TileID(15, 16826, 10771),
+                #     TileID(15, 16827, 10770),
+                #     TileID(15, 16827, 10771)
+                #     )
+                # ),
+            ),
+            (5228134,),
+        ],
+    )
+    def test_get_bbox_latlon(self, taxon_id):
+        bbox = self.gbif.get_bbox(taxon_id)
+        print(bbox)
 
     # @pytest.mark.vcr("new")
     # @pytest.mark.parametrize(
@@ -299,3 +300,46 @@ class TestFullMapGBIF:
 #     t1.name = f"test_tile_comp-{taxon_id}"
 #     t1.save()
 #     # Do something to make sure the composition worked correctly. Should probably be using saved tiles too.
+
+
+class TestMiscMapper:
+    test_img_path = Path("./static_maps/tests/images")
+    base_map = BaseMap("")
+
+    @pytest.mark.parametrize(
+        "test_img_fn, zoom, tile_size, bbox, bbox_parts",
+        [
+            (
+                "test_bbox_am.png",
+                0,
+                256,
+                None,
+                (
+                    LatLonBBox(28.3, 164.5, 53.3, 180.0),
+                    LatLonBBox(28.3, -178.6, 53.3, -174.4),
+                ),
+            ),
+            (
+                "test_bbox_normal.png",
+                0,
+                256,
+                LatLonBBox(
+                    left=-52.5,
+                    top=-129.4,
+                    right=-13.9,
+                    bottom=-88.6,
+                ),
+                None,
+            ),
+        ],
+    )
+    def test_bbox_from_img(self, test_img_fn, zoom, tile_size, bbox, bbox_parts):
+        with open(self.test_img_path / Path(test_img_fn), "rb") as f:
+            test_img = Image.open(f).copy()
+        res = self.base_map.find_image_bbox(test_img, zoom)
+        print("res:", len(res), res)
+        if len(res) == 1:
+            assert res[0] == bbox
+        else:
+            assert res[0] == bbox_parts[0]
+            assert res[1] == bbox_parts[1]

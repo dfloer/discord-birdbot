@@ -7,9 +7,17 @@ import PIL.Image as Img
 
 # sys.path.append(os.getcwd())
 
-from static_maps.geo import BBoxBase, DynamicBBox, BBoxAlias, LatLonBBox, Point, LatLon
+from static_maps.geo import (
+    BBoxBase,
+    DynamicBBox,
+    BBoxAlias,
+    LatLonBBox,
+    Point,
+    LatLon,
+    lat_lon_to_pixels,
+)
 import static_maps.geo as geo
-from static_maps.imager import Pixel
+from static_maps.imager import Pixel, PixBbox
 
 
 class TestBboxAlias:
@@ -185,7 +193,7 @@ class TestBboxBase:
             (BBoxBase(12, 45, 39, 124), "area", 2133),
         ],
     )
-    def test_properties(self, in_bbox, prop, res):
+    def test_base_properties(self, in_bbox, prop, res):
         a = object.__getattribute__(in_bbox, prop)
         assert a == res
         assert type(a) == type(res)
@@ -264,7 +272,7 @@ class TestDynamicBbox:
         [
             (DynamicBBox(1, 2, 3, 4), "area", 4),
             (DynamicBBox(0, 0, 7, 7), "center", Point(3.5, 3.5)),
-            (DynamicBBox(1, 2, 3, 4), "tl", Point(1, 2)),
+            (DynamicBBox(left=1, top=2, right=3, bottom=4), "tl", Point(1, 2)),
             (DynamicBBox(1, 2, 3, 4), "br", Point(3, 4)),
             (DynamicBBox(1, 2, 3, 4), "x_dim", 2),
             (DynamicBBox(1, 2, 3, 4), "y_dim", 2),
@@ -294,7 +302,7 @@ class TestDynamicBbox:
             (DynamicBBox(12, 45, 39, 124), "area", 2133),
         ],
     )
-    def test_properties(self, in_bbox, prop, res):
+    def test_dynamic_properties(self, in_bbox, prop, res):
         a = object.__getattribute__(in_bbox, prop)
         assert a == res
         assert type(a) == type(res)
@@ -398,8 +406,10 @@ class TestLatLonBbox:
     @pytest.mark.parametrize(
         "in_bbox, prop, res",
         [
-            (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "tl", LatLon(-54.75, -68.25)),
-            (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "br", LatLon(-54.85, -68.35)),
+            (LatLonBBox(-180.0, 90.0, 180.0, -90.0), "tl", LatLon(90.0, -180.0)),
+            (LatLonBBox(-180.0, 90.0, 180.0, -90.0), "br", LatLon(-90.0, 180)),
+            (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "tl", LatLon(-68.25, -54.75)),
+            (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "br", LatLon(-68.35, -54.85)),
             (LatLonBBox(-54.75, -68.25, -54.85, -68.35), "xy_dims", (0.1, 0.1)),
             (LatLonBBox(20.0, 40.0, 40.0, -40.0), "xy_dims", (20.0, 80.0)),
             (LatLonBBox(1.0, 2.0, 1.0, 4.0), "xy_dims", (0.0, 2.0)),
@@ -418,6 +428,58 @@ class TestLatLonBbox:
     def test_area_ni(self):
         with pytest.raises(NotImplementedError):
             _ = LatLonBBox(12, 45, 39, 124).area
+
+    @pytest.mark.parametrize(
+        "latlon, zoom, pixels",
+        [
+            (
+                LatLonBBox(-54.75, -68.25, -54.85, -68.35),
+                3,
+                None,
+            ),
+            (
+                LatLonBBox(-54.75, -68.25, -54.85, -68.35),
+                4,
+                None,
+            ),
+            (LatLonBBox(-54.75, -68.25, 54.85, 68.35), 5, None),
+            (LatLonBBox(20.0, 40.0, 40.0, -40.0), 0, None),
+            (
+                LatLonBBox(1.0, 2.0, 1.0, 4.0),
+                0,
+                None,
+            ),
+            (
+                LatLonBBox(-54.75, -68.25, -54.85, -68.35),
+                15,
+                None,
+            ),
+        ],
+    )
+    def test_latlon_to_pixels(self, latlon, zoom, pixels):
+        res = geo.bounding_lat_lon_to_pixels(latlon, zoom)
+        print(res)
+        # assert res == pixels
+
+    @pytest.mark.parametrize(
+        "latlon, result",
+        [
+            (
+                LatLonBBox(north=45.0, south=-45.0, west=-90.0, east=90.0),
+                None,
+            ),
+            (
+                LatLonBBox(north=45.0, south=-45.0, west=90.0, east=-90.0),
+                (
+                    LatLonBBox(north=45.0, south=-45.0, west=90.0, east=180.0),
+                    LatLonBBox(north=45.0, south=-45.0, west=-180.0, east=-90.0),
+                ),
+            ),
+        ],
+    )
+    def test_antimeridian_split(self, latlon, result):
+        res = latlon.am_split()
+        assert res == result
 
 
 class TestLatLon:
@@ -463,118 +525,51 @@ class TestLatLon:
         if not roundtrip:
             assert result_pixels == pixels
 
-    # @pytest.mark.parametrize(
-    #     "pixels_bbox, zoom, tile_size, truncate, expected",
-    #     [
-    #         ((0, 0, 255, 255), 0, 256, True, ()),
-    #     ],
-    # )
-    # def test_pixel_bbox_to_latlon_bbox(self, pixels_bbox, zoom, tile_size, truncate, expected):
-    #     pbb = PixBbox(*pixels_bbox)
-    #     ex = LatLonBBox(*expected)
-    #     res = geo_utils.bounding_pixels_to_lat_lon(pbb, zoom, tile_size, truncate)
-    #     assert res == ex
-
-
-class TestFindTiles:
     @pytest.mark.parametrize(
-        "bbox, start_zoom, end_zoom, name, test_image_fn",
+        "latlon, pixels, zoom",
+        [
+            (LatLon(lat=6.7, lon=109.2), Pixel(206, 133), 0),
+        ],
+    )
+    def test_lat_lon_to_pixels(self, latlon, zoom, pixels):
+        res = geo.lat_lon_to_pixels(latlon, zoom)
+        assert res == pixels
+        # res2 = geo.pixels_to_lat_lon(pixels, zoom)
+        # assert res2 == latlon
+
+    @pytest.mark.parametrize(
+        "bbox, other_bbox, result",
         [
             (
-                LatLonBBox(
-                    east=175.781248, south=-42.032974, west=173.671878, north=-40.979897
-                ),
-                0,
-                9,
-                "Wellington Test - general area test.",
-                None,
+                LatLonBBox(left=-180.0, right=180.0, top=90.0, bottom=-90.0),
+                LatLonBBox(left=-180.0, right=180.0, top=90.0, bottom=-90.0),
+                True,
             ),
             (
-                LatLonBBox(
-                    west=-179.99999999291,
-                    south=16.9397716157348,
-                    east=179.326113654898,
-                    north=71.9081724700314,
-                ),
-                0,
-                2,
-                "Bald Eagle - AM wrap with zoom.",
-                None,
+                LatLonBBox(left=-90.0, right=90.0, top=45.0, bottom=-45.0),
+                LatLonBBox(left=-180.0, right=180.0, top=90.0, bottom=-90.0),
+                False,
             ),
             (
-                LatLonBBox(
-                    west=-172.813477719954,
-                    south=-82.1269032464488,
-                    east=179.326113654898,
-                    north=-39.6895335169534,
-                ),
-                0,
-                1,
-                "Emperor Pengiun - Antartica.",
-                None,
-            ),
-            (
-                LatLonBBox(
-                    west=-163.830324878759,
-                    south=47.02752144317,
-                    east=163.156438540747,
-                    north=71.9081724700314,
-                ),
-                0,
-                1,
-                "Gray-headed Chickadee- No AM wrap.",
-                None,
-            ),
-            (
-                LatLonBBox(
-                    west=-91.965102149197,
-                    south=-1.38713438223174,
-                    east=-89.2701562968385,
-                    north=0.421740150964651,
-                ),
-                0,
-                8,
-                "Galapagos Pengiun - small area",
-                None,
-            ),
-            (
-                LatLonBBox(
-                    west=-178.203369424671,
-                    south=-52.691212723642,
-                    east=179.326113654898,
-                    north=-28.7802470429875,
-                ),
-                0,
-                4,
-                "Tui - AM wrap with more zoom.",
-                "tui_0-0-0.png",
-            ),
-            (
-                LatLonBBox(
-                    west=-151.253910901085,
-                    south=4.9495734055138,
-                    east=5.05294853571131,
-                    north=63.6299576758096,
-                ),
-                0,
-                2,
-                "Gray Catbird - 3x1 line",
-                None,
-            ),
-            (
-                LatLonBBox(
-                    west=63.4434420034802,
-                    south=6.76762999637114,
-                    east=109.257521493576,
-                    north=35.0816917166643,
-                ),
-                0,
-                3,
-                "Rufous Treepie",
-                None,
+                LatLonBBox(left=-90.0, right=90.0, top=45.0, bottom=-45.0),
+                LatLonBBox(left=-90.0, right=90.0, top=44.99, bottom=-45.0),
+                True,
             ),
         ],
     )
-    def test_bbox_to_tiles(self, bbox, start_zoom, end_zoom, name, test_image_fn):
-        res = geo.bounding_box_to_tiles(bbox)
-        pprint(res)
+    def test_contains(self, bbox, other_bbox, result):
+        assert bbox.contains(other_bbox) == result
+
+    @pytest.mark.parametrize(
+        "pixels_bbox, zoom, tile_size, truncate, expected",
+        [
+            ((0, 0, 255, 255), 0, 256, True, (-85.1, -180.0, 84.9, 178.6)),
+        ],
+    )
+    def test_pixel_bbox_to_latlon_bbox(
+        self, pixels_bbox, zoom, tile_size, truncate, expected
+    ):
+        pbb = PixBbox(*pixels_bbox)
+        ex = LatLonBBox(*expected)
+        res = geo.bounding_pixels_to_lat_lon(pbb, zoom, tile_size, truncate)
+        assert res == ex

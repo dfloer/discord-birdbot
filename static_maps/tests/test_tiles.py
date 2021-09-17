@@ -9,8 +9,15 @@ import os
 
 sys.path.append(os.getcwd())
 
-from static_maps.tiles import Tile, TileArray, TileID, constants
-
+from static_maps.tiles import (
+    Tile,
+    TileArray,
+    TileID,
+    constants,
+    empty_tilearray_from_ids,
+    bounding_box_to_tiles,
+)
+from static_maps.geo import LatLonBBox
 
 import PIL.Image as Img
 
@@ -178,10 +185,31 @@ class TestTile:
                 Tile(TileID(8, 4, 2), img=create_blank_image()),
                 mercantile.Tile(z=8, x=4, y=2),
             ),
+            (
+                Tile(TileID(4, 10, 9), img=create_blank_image()),
+                mercantile.Tile(z=4, x=10, y=9),
+            ),
         ],
     )
     def test_to_mercantile(self, test_tile, m_tile):
         assert test_tile.asmercantile == m_tile
+
+    @pytest.mark.parametrize(
+        "tile, bounds",
+        [
+            (
+                Tile(TileID(4, 10, 9), img=create_blank_image()),
+                LatLonBBox(
+                    left=45.0,
+                    bottom=-40.97989806962013,
+                    right=67.5,
+                    top=-21.943045533438177,
+                ),
+            ),
+        ],
+    )
+    def test_tile_bounds(self, tile, bounds):
+        assert tile.bounds == bounds
 
 
 # Just a 2x2 tilearray.
@@ -374,3 +402,159 @@ class TestTileArray:
         assert isinstance(res, TileArray)
         for tid in expected_sibling_ids:
             assert tid in res.keys()
+
+    def test_tilearray_from_tids(self, tile_ids, images):
+        ta = empty_tilearray_from_ids(tile_ids)
+        assert list(ta.keys()) == tile_ids
+        assert [t.tid for t in ta.values()] == tile_ids
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            LatLonBBox(
+                left=-180.0, top=85.0511287798066, right=180.0, bottom=-85.0511287798066
+            ),
+            LatLonBBox(
+                left=4.85595703125,
+                top=52.362183216744256,
+                right=4.8779296875,
+                bottom=52.34876318198808,
+            ),
+        ],
+    )
+    @pytest.mark.skip("This passes, just needs to be parameterized correctly.")
+    def test_tilearray_bbox(self, tile_ids, images, result):
+        ta = empty_tilearray_from_ids(tile_ids)
+        res = ta.bounds
+        assert res == result
+
+
+class TestFindTiles:
+    @pytest.mark.parametrize(
+        "bbox, start_zoom, end_zoom, name, am_invalid",
+        [
+            (
+                LatLonBBox(
+                    east=175.781248, south=-42.032974, west=173.671878, north=-40.979897
+                ),
+                0,
+                8,
+                "Wellington Test - general area test.",
+                False,
+            ),
+            (
+                LatLonBBox(
+                    west=-179.99999999291,
+                    south=16.9397716157348,
+                    east=179.326113654898,
+                    north=71.9081724700314,
+                ),
+                0,
+                1,  # Ideally 2, but for the baseline, 1 is fine.
+                "Bald Eagle - AM wrap with zoom.",
+                True,
+            ),
+            (
+                LatLonBBox(
+                    west=-172.813477719954,
+                    south=-82.1269032464488,
+                    east=179.326113654898,
+                    north=-39.6895335169534,
+                ),
+                0,
+                1,
+                "Emperor Pengiun - Antartica.",
+                True,
+            ),
+            (
+                LatLonBBox(
+                    west=-163.830324878759,
+                    south=47.02752144317,
+                    east=163.156438540747,
+                    north=71.9081724700314,
+                ),
+                0,
+                1,
+                "Gray-headed Chickadee- No AM wrap.",
+                False,
+            ),
+            (
+                LatLonBBox(
+                    west=-91.965102149197,
+                    south=-1.38713438223174,
+                    east=-89.2701562968385,
+                    north=0.421740150964651,
+                ),
+                0,
+                8,
+                "Galapagos Pengiun - small area",
+                False,
+            ),
+            (
+                LatLonBBox(
+                    west=-178.203369424671,
+                    south=-52.691212723642,
+                    east=179.326113654898,
+                    north=-28.7802470429875,
+                ),
+                0,
+                1,  # should be 4 with AM wrap.
+                "Tui - AM wrap with more zoom.",
+                True,
+            ),
+            (
+                LatLonBBox(
+                    west=-151.253910901085,
+                    south=4.9495734055138,
+                    east=5.05294853571131,
+                    north=63.6299576758096,
+                ),
+                0,
+                2,
+                "Gray Catbird - 3x1 line",
+                False,
+            ),
+            (
+                LatLonBBox(
+                    west=63.4434420034802,
+                    south=6.76762999637114,
+                    east=109.257521493576,
+                    north=35.0816917166643,
+                ),
+                0,
+                3,
+                "Rufous Treepie",
+                False,
+            ),
+            (
+                LatLonBBox(
+                    west=160.15,
+                    south=-53.38,
+                    east=-176.17,
+                    north=-25.13,
+                ),
+                0,
+                4,
+                "New Zealand well-formed AM cross - west > east.",
+                False,
+            ),
+        ],
+    )
+    def test_bbox_to_tiles(self, bbox, start_zoom, end_zoom, name, am_invalid):
+        res = bounding_box_to_tiles(bbox, start_zoom)
+        print(f"res ({len(res)}):\n", res)
+        if not res:
+            assert am_invalid
+            assert len(res) == 0
+            assert res.zoom is not None
+        elif len(res) == 1:
+            assert res[0].zoom == end_zoom
+            assert not am_invalid
+        else:
+            assert res[0].zoom == end_zoom
+            assert res[1].zoom == end_zoom
+            assert not am_invalid
+        # assert False
+
+    # def test_alternative_bbox(self, bad_bbox, bbox_guess):
+    #     pass

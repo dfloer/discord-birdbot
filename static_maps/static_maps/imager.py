@@ -9,7 +9,7 @@ import PIL.Image as BaseImage
 import PIL.ImageDraw as ImageDraw
 from requests import Response
 
-from static_maps.geo import BBoxBase
+from static_maps.geo import BBoxBase, BBoxT
 
 ImageQuad = namedtuple("ImageQuad", "tl, tr, bl, br")
 
@@ -365,3 +365,19 @@ def blank(mode: str = "RGB", size: Tuple[int, int] = (512, 512)) -> "Image":
     Convenience function that creates a blank image.
     """
     return Image.new(mode, size)
+
+
+def debug_draw_pix_bbox(
+    bbox: BBoxT, image: "Image", name: str, colour: Tuple[int] = (0, 255, 255)
+) -> None:
+    """
+    Debug function. Takes a list of bounding boxes and names and draws them on the image.
+    """
+    background = image.copy()
+    new_img2 = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    box_img1 = ImageDraw.Draw(new_img2)
+    for b in bbox:
+        box_img1.rectangle(tuple(b), outline=colour, fill=(0, 0, 0, 0))
+    background = Image.alpha_composite(background, new_img2)
+    with open(f"{name}.png", "wb") as f:
+        background.save(f, "png")

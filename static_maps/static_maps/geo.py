@@ -4,11 +4,12 @@ from dataclasses import dataclass, field
 from typing import Any, DefaultDict, Dict, Iterable, List, Tuple, Union
 
 import constants
-import mercantile
 
 Point = namedtuple("Point", ("x", "y"))
 Pixel = namedtuple("Pixel", ("x", "y"))
 LatLon = namedtuple("LatLon", ("lat", "lon"))
+
+BBoxT = Union["BBoxBase", "DynamicBBox", "LatLonBBox", "PixBbox"]
 
 
 @dataclass
@@ -186,7 +187,7 @@ class DynamicBBox(BBoxBase):
                 self._set(k, v)
             except AttributeError:
                 raise AttributeError(
-                    f"type object '{type(self).__name__}' has no attribute '{name}' (alias missing?)"
+                    f"type object '{type(self).__name__}' has no attribute '{k}' (alias missing?)"
                 )
 
 
@@ -223,6 +224,15 @@ class LatLonBBox(DynamicBBox):
                 s.add(y)
         return list(s)
 
+    # Note, lat/lon ordering is y/x ordering, so these are swapped from the superclass.
+    @property
+    def tl(self) -> int:
+        return self.point_type(self.top, self.left)
+
+    @property
+    def br(self) -> int:
+        return self.point_type(self.bottom, self.right)
+
     @property
     def area(self):
         raise NotImplementedError("Area for LatLonBBox not supported.")
@@ -235,6 +245,31 @@ class LatLonBBox(DynamicBBox):
 
     def __ne__(self, cmp: Any) -> bool:
         return not self.__eq__(cmp)
+
+    def contains(self, c: "LatLonBBox") -> bool:
+        """True if self contains the candidate bbox completely."""
+        return (
+            self.left <= c.left
+            and self.right >= c.right
+            and self.top >= c.top
+            and self.bottom <= c.bottom
+        )
+
+    def am_split(self) -> Union[Tuple["LatLonBBox"], None]:
+        """Splits this bbox into two if it crosses the anti-meridian, west then east. If it doesn't, returns None."""
+        print(f"ams: west: {self.west}, east: {self.east}")
+        if self.west < self.east:
+            return None
+        else:
+            west_part = LatLonBBox(
+                west=self.west, east=180.0, north=self.north, south=self.south
+            )
+            east_part = LatLonBBox(
+                west=-180.0, east=self.east, north=self.north, south=self.south
+            )
+            print("west part:\n", west_part)
+            print("east part:\n", east_part)
+            return west_part, east_part
 
 
 @dataclass(eq=False)
@@ -338,7 +373,41 @@ def bounding_pixels_to_lat_lon(
     return LatLonBBox(*tl, *br)
 
 
-def bounding_box_to_tiles(
-    bbox: LatLonBBox, secondary_check: bool = True
-) -> "TileArray":
-    print(bbox)
+def bounding_lat_lon_to_pixels(
+    latlon: LatLonBBox, zoom: int, tile_size: int = 256
+) -> PixBbox:
+    """
+    Convenience function for pixels_to_lat_lon() that takes a pixel bbox instead of just two pixels.
+    """
+    tl = lat_lon_to_pixels(latlon.tl, zoom, tile_size)
+    br = lat_lon_to_pixels(latlon.br, zoom, tile_size)
+    return PixBbox(*tl, *br)
+
+
+def split_bbox_half(bbox: BBoxT, tile_size: int) -> List[BBoxT]:
+    """Spluts a bounding box in halt."""
+    tlx, tly = bbox.tl
+    brx, bry = bbox.br
+    ts = tile_size // 2
+    T = type(bbox)
+    return [
+        T(left=tlx, top=tly, right=ts, bottom=bry),
+        T(left=ts + 1, top=tly, right=brx, bottom=bry),
+    ]
+
+
+def remap_split_bbox(bbox: BBoxT, tile_size: int) -> BBoxT:
+    """
+    Remaps the coordinates in a split bounding box.
+    """
+    tlx, tly = bbox.tl
+    brx, bry = bbox.br
+    ts = tile_size // 2
+    if tlx < ts:
+        tlx += ts
+        brx += ts
+    else:
+        tlx -= ts
+        brx -= ts
+    T = type(bbox)
+    return T(left=tlx, top=tly, right=brx, bottom=bry)

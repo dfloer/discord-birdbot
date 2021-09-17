@@ -5,8 +5,14 @@ from typing import Dict, List, Optional, Tuple
 import requests
 
 import static_maps.imager as imager
-from static_maps.geo import LatLon, LatLonBBox
-from static_maps.imager import Image
+from static_maps.geo import (
+    LatLon,
+    LatLonBBox,
+    bounding_pixels_to_lat_lon,
+    split_bbox_half,
+    remap_split_bbox,
+)
+from static_maps.imager import Image, debug_draw_pix_bbox, swap_left_right
 from static_maps.tiles import Tile, TileArray, TileID
 
 
@@ -38,10 +44,51 @@ class BaseMap:
         vals = {k.lower(): v for k, v in res.items() if k.lower() in bounding_values}
         return LatLonBBox(**vals)
 
+    def get_bbox_tiles(self, bbox: LatLonBBox) -> TileArray:
+        pass
+
     class AuthMissingError(Exception):
         def __init__(self, message="Missing auth for map.") -> None:
             self.message = message
             super().__init__(self.message)
+
+    def find_image_bbox(self, test_img: Image, zoom: int = 0) -> List[LatLonBBox]:
+        """
+        Given an image, finds a lat lon bounding box for the image.
+        If the image is split across the antimeridian (-180/180) then it returns a split bounding box.
+        The algorithm is simple. Cut the image on the prime meridian and paste on the anti-meridian.
+            Once that's done, recheck to see if the bbox is smaller. If it is, then the image must've crossed the anti-meridian.
+        Args:
+            test_img (Image): Image to test to find the bbox(es).
+            zoom (int, optional): Zoom level of the input time. Defaults to 0.
+                At zoom > 0, this will simply return the latlon bounds for a tile.
+        Returns:
+            List[LatLonBBox]: One bounding box covering all of the pixels in the picture. Two is crossing the antimeridian results in a tigher bounding box.
+        """
+        tile_size = test_img.size[0]
+        bbox = test_img.getbbox()
+        print("bbox:", bbox)
+        swapped_image = swap_left_right(test_img)
+        swapped_bbox = swapped_image.getbbox()
+
+        if zoom > 0 or swapped_bbox.area >= bbox.area:
+            res = bounding_pixels_to_lat_lon(bbox, zoom, tile_size)
+            return [LatLonBBox(*res)]
+        else:
+            left_half, right_half = split_bbox_half(swapped_bbox, tile_size)
+            remap_left_half = remap_split_bbox(left_half, tile_size)
+            remap_right_half = remap_split_bbox(right_half, tile_size)
+
+            debug_draw_pix_bbox([bbox], test_img, "test_nosplit_bbox")
+            debug_draw_pix_bbox([left_half, right_half], test_img, "test_split_bbox")
+            debug_draw_pix_bbox(
+                [remap_left_half, remap_right_half], test_img, "test_remap_bbox"
+            )
+
+            left = bounding_pixels_to_lat_lon(remap_left_half, zoom, tile_size)
+            right = bounding_pixels_to_lat_lon(remap_right_half, zoom, tile_size)
+
+            return [LatLonBBox(*left), LatLonBBox(*right)]
 
 
 @dataclass
@@ -257,7 +304,14 @@ class GBIF(BaseMap):
             return (None, None)
         return res
 
-    def get_bbox(self, taxon_key: str) -> LatLonBBox:
+    def get_bbox(self, taxon_key: int) -> LatLonBBox:
+        """
+        Given a taxon key, query the GBIF map API for a bounding box for the taxon.
+        Args:
+            taxon_key (int): The taxon ID to look up.
+        Returns:
+            LatLonBBox: bounding box for the taxon key.
+        """
         params = {"taxonKey": taxon_key}
         url = "v2/map/occurrence/density/capabilities.json"
         metadata = self.get_bbox_meta(url, params)
