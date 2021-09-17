@@ -233,3 +233,35 @@ class TestImage:
         # And back again.
         sp = imager.quad_split(res)
         assert all([self.compare_images(*a) for a in zip(sp, imgs)])
+
+    @pytest.mark.parametrize(
+        "image_fn, crop_size, expected_bounds",
+        [
+            (
+                "test_crop_bounds_512-max.png",
+                512,
+                PixBbox(256, 256, 768, 768),
+            ),
+            (
+                "test_crop_bounds_512-normal.png",
+                512,
+                PixBbox(109, 132, 621, 644),
+            ),
+            (
+                "test_crop_bounds_512-am.png",
+                512,
+                PixBbox(128, 128, 640, 640),
+            ),
+        ],
+    )
+    def test_find_crop_bounds(self, image_fn, crop_size, expected_bounds):
+        image = self.open_image(image_fn)
+        (
+            swapped_image,
+            crop_area,
+            center,
+            bbox,
+            extra_tiles,
+            fill_crop,
+        ) = imager.find_crop_bounds(image, crop_size)
+        assert crop_area == expected_bounds

@@ -100,18 +100,18 @@ class ImageLoadError(Exception):
         super().__init__(self.message)
 
 
-def calc_extra_tiles(tiles, extra_tiles):
-    """
-    ...
-    """
-    left = min(t.tid.x for t in tiles) - extra_tiles[0]
-    upper = min(t.tid.y for t in tiles) - extra_tiles[1]
-    right = max(t.tid.x for t in tiles) + extra_tiles[2]
-    lower = max(t.tid.y for t in tiles) + extra_tiles[3]
-    return (left, upper, right, lower)
+# def calc_extra_tiles(tiles, extra_tiles):
+#     """
+#     ...
+#     """
+#     left = min(t.tid.x for t in tiles) - extra_tiles[0]
+#     upper = min(t.tid.y for t in tiles) - extra_tiles[1]
+#     right = max(t.tid.x for t in tiles) + extra_tiles[2]
+#     lower = max(t.tid.y for t in tiles) + extra_tiles[3]
+#     return (left, upper, right, lower)
 
 
-def find_crop_bounds(image, output_size=512):
+def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
     """
     Calculates the crop for a given image.
     Args:
