@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 from typing import Any, Iterable, Optional, Union
 
-import constants
+import static_maps.constants as constants
 import mercantile
 import PIL.ImageDraw as ImageDraw
 
@@ -550,6 +550,14 @@ def bounding_box_to_tiles(
         tile_east, alt_east, zoom_east = _bounding_box_candidates(
             bbox_east, zoom_level, size
         )
+        print("West:")
+        pprint(tile_west)
+        print("West alt:")
+        pprint(alt_west)
+        print("East:")
+        pprint(tile_east)
+        print("East alt:")
+        pprint(alt_east)
         # If one bbox is tigher than the other, this is a problem. Only take the furthest out one.
         minimum_zoom = min(zoom_west, zoom_east) - 1
         if zoom_west != zoom_east:
@@ -562,8 +570,10 @@ def bounding_box_to_tiles(
             ta = empty_tilearray_from_ids(tids)
             return (ta,)
         # Ignore the alts, because they're spurious for this case as a 2x2 split across the am will always trigger the alt for a 2x 2x2 bbox, which is wrong.
-        best_west = _best_tile_covering(bbox_west, tile_west, alt_west, minimum_zoom)
-        best_east = _best_tile_covering(bbox_east, tile_east, alt_east, minimum_zoom)
+        # best_west = _best_tile_covering(bbox_west, tile_west, alt_west, minimum_zoom)
+        # best_east = _best_tile_covering(bbox_east, tile_east, alt_east, minimum_zoom)
+        best_west = _best_tile_covering(bbox_west, tile_west, TileArray(), minimum_zoom)
+        best_east = _best_tile_covering(bbox_east, tile_east, TileArray(), minimum_zoom)
         return best_west, best_east
     else:
         tile_ids, tile_ids_alt, end_zoom_level = _bounding_box_candidates(
@@ -622,6 +632,7 @@ def _bounding_box_candidates(
         x_dim, y_dim = bbox_pix.xy_dims
         print("xy dims:", bbox_pix.xy_dims, zoom_level)
         if x_dim > size or y_dim > size:
+            print("xy break dims:", size, bbox_pix.xy_dims, zoom_level)
             break
         # First, get the bounding box for this zoom level.
         mt_tids = list(

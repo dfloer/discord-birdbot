@@ -3,7 +3,7 @@ from collections import defaultdict, namedtuple
 from dataclasses import dataclass, field
 from typing import Any, DefaultDict, Dict, Iterable, List, Tuple, Union
 
-import constants
+import static_maps.constants as constants
 
 Point = namedtuple("Point", ("x", "y"))
 Pixel = namedtuple("Pixel", ("x", "y"))

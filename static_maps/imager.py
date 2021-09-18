@@ -27,6 +27,15 @@ def new_getbbox(self: Any) -> "PixBbox":
 
 Image.Image.getbbox = new_getbbox
 
+
+def asbytes(self) -> bytes:
+    d = BytesIO()
+    self.save(d, "png")
+    return BytesIO(d.getvalue())
+
+
+Image.Image.asbytes = asbytes
+
 Pixel = namedtuple("Pixel", "x, y")
 
 
@@ -183,11 +192,13 @@ def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
         fill_left + output_size,
         fill_upper + output_size,
     )
-    test_image = image.copy()
-    box_img = ImageDraw.Draw(test_image)
+    new_img = image.copy()
+    bg_img = image.copy()
+    box_img = ImageDraw.Draw(new_img)
     box_img.rectangle(fill_crop, outline=(0, 255, 255), fill=(0, 0, 0, 0))
+    new_img.alpha_composite(bg_img)
     with open("crop_area.png", "wb") as f:
-        test_image.save(f, "png")
+        new_img.save(f, "png")
 
     if swapped_image:
         print("crop_area", crop_area)

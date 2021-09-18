@@ -336,20 +336,19 @@ class GBIF(BaseMap):
 @dataclass
 class eBirdMap:
     max_zoom: int = 12
+    map_base_url: str = "https://ebird.org/map/"
+    map_tile_url: str = "https://geowebcache.birds.cornell.edu/ebird/gmaps"
     """
     Generates an eBird range map.
     Note that this isn't using a documented API, and so could break at any time.
     """
 
-    def get_bbox(self, species_code, zoom=0):
-        res = requests.get(
-            f"https://ebird.org/map/env?rsid=&speciesCode={species_code}"
-        )
-        left, right, bottom, top = res.json().values()
-        print("rbb: ", res.json())
-
-        bbox = LatLonBbox(left=left, right=right, bottom=bottom, top=top)
-        print("tiles bbox: ", bbox)
+    def get_bbox(self, species_code: str, zoom: int = 0) -> LatLonBBox:
+        params = {"rsid": "", "speciesCode": species_code}
+        url = self.map_base_url + "env"
+        bbox = self.get_bbox_meta(url, params)
+        print("ebird bbox: ", bbox)
+        return bbox
 
     def get_tiles(self, species_code, zoom):
         tile_ids = self.get_bbox(species_code, zoom)
@@ -369,13 +368,22 @@ class eBirdMap:
             # print(tile.z, tile.x, tile.y, tile.center, tile)
         return tiles
 
-    def download_tile(self, zoom, x, y, rsid):
-        url = f"https://geowebcache.birds.cornell.edu/ebird/gmaps?layers=EBIRD_GRIDS_WS2&format=image/png&zoom={zoom}&x={x}&y={y}&CQL_FILTER=result_set_id='{rsid}'"
+    def download_tile(self, tile_id: TileID, rsid: str) -> Tile:
+        params = {
+            "layers": "EBIRD_GRIDS_WS2",
+            "format": "image/png",
+            "zoom": tile_id.zoom,
+            "x": tile_id.x,
+            "y": tile_id.y,
+            "CQL_FILTER": f"result_set_id='{rsid}'",
+        }
+        # url = f"https://geowebcache.birds.cornell.edu/ebird/gmaps?layers=EBIRD_GRIDS_WS2&format=image/png&zoom={zoom}&x={x}&y={y}&CQL_FILTER=result_set_id='{rsid}'"
+        url = self.map_tile_url
         # print(f"Getting url: {url}")
-        res = requests.get(url)
+        res = requests.get(url, params=params)
         # print(res)
         img = Image.open(BytesIO(res.content))
-        return Tile(TileID(z=zoom, x=x, y=y), img=img, name=f"ebird-{rsid}")
+        return Tile(tile_id, img=img, name=f"ebird-{rsid}")
 
 
 def generate_gbif_mapbox_range(
@@ -393,6 +401,7 @@ def generate_gbif_mapbox_range(
         Image: The finished range map image.
     """
     range_bbox = gbif.get_bbox(taxon_key)
+    print("range_bbox:", range_bbox)
     gbif_tilearrays = gbif.get_bbox_tiles(range_bbox, size=map_size // 2)
     # TODO: Handle AM crossing and bad bbox.
 
@@ -428,6 +437,8 @@ def generate_gbif_mapbox_range(
         uncropped_result = c_tiles._composite_all()
 
     # This would be better handled if the TileArray knew the bounding box of the pixels it contained.
-    _, _, _, _, _, fill_crop = find_crop_bounds(gbif_layer, map_size)
+    swapped_image, _, _, _, _, fill_crop = find_crop_bounds(gbif_layer, map_size)
+    if swapped_image:
+        uncropped_result = swap_left_right(uncropped_result)
     final_image = uncropped_result.crop(fill_crop)
     return final_image
