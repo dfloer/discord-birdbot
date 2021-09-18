@@ -278,6 +278,7 @@ class TestFullMapGBIF:
             ("Hawaiian Hawk", 512),
             ("Bald Eagle", 1024),
             ("Aptenodytes forsteri", 1024),
+            ("Eudyptula minor", 512),
         ],
     )
     def test_final_range_map_antimeridian(self, input_species, map_size):
@@ -288,61 +289,6 @@ class TestFullMapGBIF:
         )
         assert range_map.size == (map_size, map_size)
         range_map.save(f"test_final_range_map-{map_size}-{input_species}.png")
-
-    # @pytest.mark.vcr("new")
-    # @pytest.mark.parametrize(
-    #     "z, x, y, fmt, style, high_res, taxon_id",
-    #     [
-    #         (0, 0, 0, "jpg90", "satellite", True, 2494988),
-    #         (0, 0, 0, "jpg90", "satellite", True, 9515886),
-    #         (0, 0, 0, "jpg90", "satellite", True, 2480528),
-    #         (0, 0, 0, "jpg90", "satellite", True, 5228134),
-    #     ],
-    # )
-    # def test_tile_composite(z, x, y, fmt, style, high_res, taxon_id):
-    #     gb = gbif.get_hex_map(z, x, y, taxon_id, high_res=False)[0]
-    #     az, ax, ay = gb.tid
-    #     mb = mapbox.get_tile(z=az, x=ax, y=ay, fmt=fmt, style=style, high_res=high_res)
-    #     mb.name = f"mb-{taxon_id}"
-    #     gb.name = f"gb-{taxon_id}"
-    #     # mb.save()
-    #     # gb.save()
-    #     t1 = mb.composite(gb)
-    #     # with open("t1b.png", "wb") as f:
-    #     #     d = io.BytesIO()
-    #     #     t1.img.save(d, "png")
-    #     #     f.write(d.getvalue())
-    #     t1.name = f"test_tile_comp-{taxon_id}"
-    #     t1.save()
-    #     # Do something to make sure the composition worked correctly. Should probably be using saved tiles too.
-
-
-# @pytest.mark.vcr("new")
-# @pytest.mark.parametrize(
-#     "z, x, y, fmt, style, high_res, taxon_id",
-#     [
-#         (0, 0, 0, "jpg90", "satellite", True, 2494988),
-#         (0, 0, 0, "jpg90", "satellite", True, 9515886),
-#         (0, 0, 0, "jpg90", "satellite", True, 2480528),
-#         (0, 0, 0, "jpg90", "satellite", True, 5228134),
-#     ],
-# )
-# def test_tile_composite(z, x, y, fmt, style, high_res, taxon_id):
-#     gb = gbif.get_hex_map(z, x, y, taxon_id, high_res=False)[0]
-#     az, ax, ay = gb.tid
-#     mb = mapbox.get_tile(z=az, x=ax, y=ay, fmt=fmt, style=style, high_res=high_res)
-#     mb.name = f"mb-{taxon_id}"
-#     gb.name = f"gb-{taxon_id}"
-#     # mb.save()
-#     # gb.save()
-#     t1 = mb.composite(gb)
-#     # with open("t1b.png", "wb") as f:
-#     #     d = io.BytesIO()
-#     #     t1.img.save(d, "png")
-#     #     f.write(d.getvalue())
-#     t1.name = f"test_tile_comp-{taxon_id}"
-#     t1.save()
-#     # Do something to make sure the composition worked correctly. Should probably be using saved tiles too.
 
 
 class TestMiscMapper:

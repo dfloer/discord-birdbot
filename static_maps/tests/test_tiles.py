@@ -551,6 +551,13 @@ class TestFindTiles:
                 "New Zealand well-formed AM cross - west > east.",
                 False,
             ),
+            (
+                LatLonBBox(west=165, north=-29, east=185, south=-53),
+                0,
+                4,
+                "Tui - AM cross.",
+                False,
+            ),
         ],
     )
     def test_bbox_to_tiles(self, bbox, start_zoom, end_zoom, name, am_invalid):
