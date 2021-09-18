@@ -148,6 +148,19 @@ class TestBbox:
         assert r.center == Pixel(*center)
         assert type(r.center) == Pixel
 
+    @pytest.mark.parametrize(
+        "in_bbox, result",
+        [
+            (
+                (0, 256, 256, 0),
+                (0, 0, 256, 256),
+            ),
+        ],
+    )
+    def test_pillow(self, in_bbox, result):
+        r = PixBbox(*in_bbox)
+        assert r.pillow == result
+
 
 class TestImage:
     test_img_path = Path("./static_maps/tests/images")

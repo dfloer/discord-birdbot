@@ -21,7 +21,7 @@ Image.Image._getbbox = Image.Image.getbbox
 
 def new_getbbox(self: Any) -> "PixBbox":
     r = self._getbbox()
-    print("r", r)
+    print("new_getbbox - r:", r)
     return PixBbox(*r) if r is not None else r
 
 
@@ -38,6 +38,13 @@ class PixBbox(BBoxBase):
     def center(self) -> Pixel:
         cx, cy = super().center
         return Pixel(round(cx), round(cy))
+
+    @property
+    def pillow(self) -> Tuple[int]:
+        """Returns pixel values, normalized for a top left orgin for pillow."""
+        new_top = self.bottom
+        new_bottom = self.top
+        return (self.left, new_top, self.right, new_bottom)
 
 
 def transparency_composite(a: "Image", b: "Image", t: int = 200) -> "Image":
@@ -138,7 +145,7 @@ def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
     size_x, size_y = image.size
     swapped_image = None
     # TODO: Make sure this works when the split is uneven. Will this ever even happen?
-    if x_dim > 512:
+    if x_dim > output_size:
         print("Wrapping Detected.")
         print(f"orig crop area: {x_dim}, {y_dim}")
         print("orig bbox:", bbox)
@@ -286,9 +293,8 @@ def composite_mxn(
         img_y -= y_min
         x_coord = img_x * image_size
         y_coord = img_y * image_size
-        img_bbox = (x_coord, y_coord, x_coord + image_size, y_coord + image_size)
-
-        new_image = img_comp(new_image, img, img_bbox)
+        img_topleft = (x_coord, y_coord)
+        new_image = img_comp(new_image, img, img_topleft)
     return new_image
 
 
