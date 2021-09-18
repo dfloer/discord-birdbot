@@ -261,7 +261,7 @@ class TestTileArray:
         pprint(tile_array)
 
     def test_creation_constructor(self, tile_ids, images):
-        tile_array = TileArray().from_dict(
+        tile_array = TileArray.from_dict(
             {TileID(k): Tile(TileID(k), v) for k, v in zip(tile_ids, images)}
         )
         for tid in tile_ids:

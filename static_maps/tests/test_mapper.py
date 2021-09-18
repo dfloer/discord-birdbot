@@ -158,9 +158,8 @@ class TestGBIF:
         ],
     )
     def test_get_tilearray(self, taxon_id, tile_ids_expected_image, map_type):
-        ta = TileArray()
         tile_ids = tile_ids_expected_image.keys()
-        ta.from_dict({x: Tile(x) for x in tile_ids})
+        ta = TileArray.from_dict({x: Tile(x) for x in tile_ids})
         ta = self.gbif.get_tiles(taxon_id, ta, mode=map_type)
         print(ta)
         for k, t in ta.items():
@@ -213,10 +212,8 @@ class TestCombinedGBIF:
         ],
     )
     def test_gbif_mapbox_comp(self, taxon_id, tile_ids):
-        mpta = TileArray()
-        mpta.from_dict({x: Tile(x) for x in tile_ids})
-        gbta = TileArray()
-        gbta.from_dict({x: Tile(x) for x in tile_ids})
+        mpta = TileArray.from_dict({x: Tile(x) for x in tile_ids})
+        gbta = TileArray.from_dict({x: Tile(x) for x in tile_ids})
 
         mapbox_tiles = self.mapbox.get_tiles(mpta)
         gbif_tiles = self.gbif.get_tiles(taxon_id, gbta)

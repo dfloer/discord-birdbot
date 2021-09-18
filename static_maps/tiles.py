@@ -193,8 +193,7 @@ class Tile:
         Returns an empty TileArray of this tile's 4 child tile ids.
         """
         tiles = {t: Tile(t) for t in self.tid.children}
-        ta = TileArray()
-        return ta.from_dict(tiles)
+        return TileArray.from_dict(tiles)
 
     @property
     def siblings(self) -> "TileArray":
@@ -202,8 +201,7 @@ class Tile:
         Returns an empty TileArray of this tile's siblings.
         """
         tiles = {t: Tile(t) for t in self.tid.siblings}
-        ta = TileArray()
-        return ta.from_dict(tiles)
+        return TileArray.from_dict(tiles)
 
     @property
     def x(self) -> int:
@@ -249,10 +247,12 @@ class TileArray(dict):
             raise self.MixedZoomError
 
     # Couldn't figure out a clean way to do this in init, so it's here.
+    @classmethod
     def from_dict(self, d: Dict[TileID, Tile]) -> "TileArray":
+        ta = TileArray()
         for k, v in d.items():
-            self[k] = v
-        return self
+            ta[k] = v
+        return ta
 
     def __str__(self) -> str:
         return str(dict(self))

@@ -215,6 +215,38 @@ class TestDynamicBbox:
         assert tuple(res_bbox) == tuple(in_bbox.values())
 
     @pytest.mark.parametrize(
+        "in_dict, result, exc",
+        [
+            (
+                {"left": 1, "top": 2, "right": 3, "bottom": 4},
+                DynamicBBox(left=1, top=2, right=3, bottom=4),
+                None,
+            ),
+            (
+                {"minx": 1, "maxy": 2, "maxx": 3, "miny": 4},
+                DynamicBBox(left=1, top=2, right=3, bottom=4),
+                None,
+            ),
+            (
+                {"minx": 1},
+                None,
+                ValueError,
+            ),
+            (
+                {"a": 1, "b": 2, "c": 3, "d": 4},
+                None,
+                AttributeError,
+            ),
+        ],
+    )
+    def test_from_dict(self, in_dict, result, exc):
+        if exc is None:
+            assert DynamicBBox.from_dict(in_dict) == result
+        else:
+            with pytest.raises(exc):
+                assert DynamicBBox.from_dict(in_dict) == result
+
+    @pytest.mark.parametrize(
         "in_bbox",
         [
             {"left": 1, "top": 2, "right": 3, "bottom": 4},

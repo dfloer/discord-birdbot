@@ -179,16 +179,15 @@ class DynamicBBox(BBoxBase):
     def __eq__(self, cmp: Any) -> bool:
         return super().__eq__(cmp)
 
+    @classmethod
     def from_dict(self, d: Dict[str, Union[int, float]]) -> None:
         if len(d) != 4:
             raise ValueError("4 values required")
-        for k, v in d.items():
-            try:
-                self._set(k, v)
-            except AttributeError:
-                raise AttributeError(
-                    f"type object '{type(self).__name__}' has no attribute '{k}' (alias missing?)"
-                )
+        try:
+            return self(**d)
+        except KeyError as e:
+            msg = f"type object '{self.__name__}' has no attribute {e} (alias missing?)"
+            raise AttributeError(msg)
 
 
 latlon_aliases = BBoxAlias()
