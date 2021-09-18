@@ -513,29 +513,35 @@ def empty_tilearray_from_ids(tile_ids: List[Union[TileID, Tuple[int]]]) -> TileA
 
 def bounding_box_to_tiles(
     bbox: geo.LatLonBBox, start_zoom: int = 0, size: int = 512
-) -> "TileArray":
+) -> Tuple["TileArray"]:
     """
     Takes a bounding box and finds the TileArray that best covers that bounding box.
     This may result in tiles that are across the anti-meridian from the rest.
-
     The end result is a TileArray of either 4, 6 or 9 tiles that fully contain the bounding box.
-
-
+    In the event that the bounding box crosses the antimeridian, will return two TileArrays, one for each side.
+        While a TileArray can store non-contiguous tiles, this is easier for now.
+    Args:
+        bbox (LatLonBBox): Bounding box to find the tile covering for.
+        start_zoom (int, optional): starting zoom level. Probably best to leave this as the default. Defaults to 0.
+        size (int, optional): Size of the map, in pixels. Should be a multiple of 256. Defaults to 512.
+    Returns:
+        Tuple["TileArray"]: A TileArray covering the bounding box that isn't larger than size.
+            If the antimeridian is crossed, this will return two TileArrays, one for each side, except in the case of zoom = 1, in which case all tiles are returned.
+            If there's a bad bounding box, returns an empty TileArray. Eventually, this should try an alternative approach to finding the proper covering.
     """
     n = bbox.north
     w = bbox.west
     s = bbox.south
     e = bbox.east
     zoom_level = start_zoom
-
     bad_bbox = False
     # Is this likely to be an incorrect bounding box that forgets that the map is actually a cynlinder?
     # This is really just a heuristic test for an incorrect bounding box, because it's hard to deal with bad data.
-    if w < -178.0 or e > 178.0:
+    if -180 < w < -178 or 178 < e < 180:
         print("Probable incorrect bounding box due to antimeridian crossing.")
         bad_bbox = True
 
-    if w > e and not bad_bbox:
+    if (w > e or abs(w) > 180 or abs(e) > 180) and not bad_bbox:
         print("Bbox crosses anti-meridian.")
         bbox_west, bbox_east = bbox.am_split()
         tile_west, alt_west, zoom_west = _bounding_box_candidates(
@@ -544,8 +550,20 @@ def bounding_box_to_tiles(
         tile_east, alt_east, zoom_east = _bounding_box_candidates(
             bbox_east, zoom_level, size
         )
-        best_west = _best_tile_covering(bbox_west, tile_west, alt_west, zoom_west)
-        best_east = _best_tile_covering(bbox_east, tile_east, alt_east, zoom_east)
+        # If one bbox is tigher than the other, this is a problem. Only take the furthest out one.
+        minimum_zoom = min(zoom_west, zoom_east) - 1
+        if zoom_west != zoom_east:
+            print("Mixed zoom found for bbox!")
+            print("bboxtt zoom:", zoom_west, zoom_east, minimum_zoom)
+        # This may be the only fix, but it may need some edge case handling.
+        # This is to avoid getting both bounding boxes showing tiles for the whole planet. Each tile should only be returned once.
+        if minimum_zoom == 1:
+            tids = [TileID(z=1, x=x, y=y) for x in (0, 1) for y in (0, 1)]
+            ta = empty_tilearray_from_ids(tids)
+            return (ta,)
+        # Ignore the alts, because they're spurious for this case as a 2x2 split across the am will always trigger the alt for a 2x 2x2 bbox, which is wrong.
+        best_west = _best_tile_covering(bbox_west, tile_west, alt_west, minimum_zoom)
+        best_east = _best_tile_covering(bbox_east, tile_east, alt_east, minimum_zoom)
         return best_west, best_east
     else:
         tile_ids, tile_ids_alt, end_zoom_level = _bounding_box_candidates(
@@ -556,11 +574,6 @@ def bounding_box_to_tiles(
             return (best,)
         else:
             return TileArray(zoom_level=end_zoom_level)
-    # print("am:", am)
-    # print("tile_ids:")
-    # pprint(tile_ids)
-    # print("tile_ids_alt: ")
-    # pprint(tile_ids_alt)
 
 
 def _best_tile_covering(
@@ -569,21 +582,34 @@ def _best_tile_covering(
     alt_tile_ids: TileArray,
     zoom_level: int,
 ) -> TileArray:
-    max_idx = max(max(tile_ids.keys()), max(alt_tile_ids.keys()))
+    """
+    Find the best tile covering of a normal and an alternate TileArray.
+    Not really intended to be used directly.
+    Alt can be empty for the best zoom level.
+    Args:
+        in_bbox (geo.LatLonBBox): input bounding box.
+        tile_ids (TileArray): normal tiles to check.
+        alt_tile_ids (TileArray): alternative tiles to check.
+        zoom_level (int): zoom level to use.
+    Returns:
+        TileArray: zoom level and choice from the two input arrays.
+    """
+    max_idx = max(max(tile_ids.keys()), max([-1] + list(alt_tile_ids.keys())))
+    max_idx = min(max_idx, zoom_level)
     best = alt_tile_ids.get(max_idx, tile_ids[max_idx])
-    print("input bounds:\n", in_bbox)
-    bbox_pix = geo.bounding_lat_lon_to_pixels(in_bbox, zoom_level)
-    print("pixels:", bbox_pix, bbox_pix.xy_dims)
-    print("new bounds:\n", best.bounds)
-    nb_pix = geo.bounding_lat_lon_to_pixels(best.bounds, zoom_level)
-    print("pixels:", nb_pix, nb_pix.xy_dims)
-    print("contains?", best.bounds.contains(in_bbox))
     return best
 
 
 def _bounding_box_candidates(
     bbox: geo.LatLonBBox, zoom_level: int, size: int
 ) -> Tuple[Dict[int, "TileArray"], int]:
+    """
+    Find bounding box candidates. Not really intended to be used directly.
+    Given a bounding box, zoom level and size, finds the maximumx zoom and the tiles on the way there.
+        The algorithm to figure out it out is pretty simple, check and see if the bounding box as pixels is larger than the image's size. If it is, the last zoom level was the best.
+    Returns:
+        Tuple[Dict[int, "TileArray"], int]: Normal tiles, alternative tiles, zoom reached.
+    """
     n = bbox.north
     w = bbox.west
     s = bbox.south
@@ -596,23 +622,18 @@ def _bounding_box_candidates(
         x_dim, y_dim = bbox_pix.xy_dims
         print("xy dims:", bbox_pix.xy_dims, zoom_level)
         if x_dim > size or y_dim > size:
-            print("!!break at zoom:", zoom_level)
             break
-
         # First, get the bounding box for this zoom level.
         mt_tids = list(
             mercantile.tiles(east=e, north=n, west=w, south=s, zooms=zoom_level)
         )
         ta = empty_tilearray_from_ids(mt_tids)
         tile_ids[zoom_level] = ta
-
         # Do our current set of tiles still cover the whole bounding box?
         if not ta.bounds.contains(bbox):
             break
-
         # Do we have a line of tiles that would better cover this bbox?
         if len(ta) in (2, 3):
             tile_ids_alt[zoom_level] = ta.find_line_sibling_tile_ids()
         zoom_level += 1
-
     return tile_ids, tile_ids_alt, zoom_level

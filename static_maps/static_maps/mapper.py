@@ -393,26 +393,41 @@ def generate_gbif_mapbox_range(
         Image: The finished range map image.
     """
     range_bbox = gbif.get_bbox(taxon_key)
-    gbta = gbif.get_bbox_tiles(range_bbox, size=map_size // 2)
-    if len(gbta) == 2:
-        assert False
-    else:
-        gbta = gbta[0]
-
+    gbif_tilearrays = gbif.get_bbox_tiles(range_bbox, size=map_size // 2)
     # TODO: Handle AM crossing and bad bbox.
-    mbta = deepcopy(gbta)
-    gbif_tiles = gbif.get_tiles(taxon_key, gbta)
-    mapbox_tiles = mapbox.get_tiles(mbta)
+
+    output_tiles = []
+
+    for gbta in gbif_tilearrays:
+        mbta = deepcopy(gbta)
+        print("gbta", gbta)
+        gbif_tiles = gbif.get_tiles(taxon_key, gbta)
+        mapbox_tiles = mapbox.get_tiles(mbta)
+        output_tiles += [{"mapbox": mapbox_tiles, "gbif": gbif_tiles}]
+
+    if len(output_tiles) == 2:
+        mapbox_left, gbif_left = output_tiles[0].values()
+        mapbox_right, gbif_right = output_tiles[1].values()
+        left = gbif_left._composite_all()
+        right = gbif_right._composite_all()
+        left.save("am_left.png")
+        right.save("am_right.png")
+        gbif_layer = imager.paste_halves(left, right)
+        gbif_layer.save("am_both.png")
+
+        c_tiles_left = mapbox_left._composite_layer(gbif_left)
+        c_tiles_right = mapbox_right._composite_layer(gbif_right)
+        img_left = c_tiles_left._composite_all()
+        img_right = c_tiles_right._composite_all()
+        uncropped_result = imager.paste_halves(img_left, img_right)
+    else:
+        mapbox_tiles = output_tiles[0]["mapbox"]
+        gbif_tiles = output_tiles[0]["gbif"]
+        gbif_layer = gbif_tiles._composite_all()
+        c_tiles = mapbox_tiles._composite_layer(gbif_tiles)
+        uncropped_result = c_tiles._composite_all()
 
     # This would be better handled if the TileArray knew the bounding box of the pixels it contained.
-    gbif_layer = gbif_tiles._composite_all()
-    gbif_layer.save(f"bbox_get-{taxon_key}-{map_size}.png")
     _, _, _, _, _, fill_crop = find_crop_bounds(gbif_layer, map_size)
-
-    c_tiles = mapbox_tiles._composite_layer(gbif_tiles)
-    c_tiles.name = "gbif_range+mapbox"
-    # This is our output map, but it still needs to be cropped to the proper area.
-    uncropped_comp = c_tiles._composite_all()
-
-    final_image = uncropped_comp.crop(fill_crop)
+    final_image = uncropped_result.crop(fill_crop)
     return final_image

@@ -258,10 +258,31 @@ class TestFullMapGBIF:
         [
             ("Bushtit", 512),
             ("Bushtit", 1024),
+            ("Inaccessible Island Rail", 512),
+            ("Inaccessible Island Rail", 1024),
         ],
     )
-    def test_final_range_map(self, input_species, map_size):
+    def test_final_range_map_normal(self, input_species, map_size):
         species, taxon_key = self.gbif.lookup_species(input_species)
+        range_map = generate_gbif_mapbox_range(
+            taxon_key, self.gbif, self.mapbox, map_size
+        )
+        assert range_map.size == (map_size, map_size)
+        range_map.save(f"test_final_range_map-{map_size}-{input_species}.png")
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "input_species, map_size",
+        [
+            ("Tui", 512),
+            ("Hawaiian Hawk", 512),
+            ("Bald Eagle", 1024),
+            ("Aptenodytes forsteri", 1024),
+        ],
+    )
+    def test_final_range_map_antimeridian(self, input_species, map_size):
+        species, taxon_key = self.gbif.lookup_species(input_species)
+        print("taxon_key", taxon_key)
         range_map = generate_gbif_mapbox_range(
             taxon_key, self.gbif, self.mapbox, map_size
         )
