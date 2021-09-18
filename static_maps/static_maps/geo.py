@@ -257,19 +257,23 @@ class LatLonBBox(DynamicBBox):
 
     def am_split(self) -> Union[Tuple["LatLonBBox"], None]:
         """Splits this bbox into two if it crosses the anti-meridian, west then east. If it doesn't, returns None."""
-        print(f"ams: west: {self.west}, east: {self.east}")
-        if self.west < self.east:
-            return None
-        else:
+        if self.west > self.east or abs(self.east) > 180 or abs(self.west) > 180:
+            west_part_west = self.west
+            east_part_east = self.east
+            # This means that west=-190, east=-170 becomes w=170, e=180, w=-180W, e=-170
+            if self.west < -180:
+                west_part_west = 360 + self.west
+            elif self.east > 180:
+                east_part_east = self.east - 360
             west_part = LatLonBBox(
-                west=self.west, east=180.0, north=self.north, south=self.south
+                west=west_part_west, east=180.0, north=self.north, south=self.south
             )
             east_part = LatLonBBox(
-                west=-180.0, east=self.east, north=self.north, south=self.south
+                west=-180.0, east=east_part_east, north=self.north, south=self.south
             )
-            print("west part:\n", west_part)
-            print("east part:\n", east_part)
             return west_part, east_part
+        else:
+            return None
 
 
 @dataclass(eq=False)

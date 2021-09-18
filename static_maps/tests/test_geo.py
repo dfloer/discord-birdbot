@@ -482,11 +482,36 @@ class TestLatLonBbox:
                     LatLonBBox(north=45.0, south=-45.0, west=-180.0, east=-90.0),
                 ),
             ),
+            (
+                LatLonBBox(left=165, top=-29, right=185, bottom=-53),
+                (
+                    LatLonBBox(left=165, top=-29, right=180.0, bottom=-53),
+                    LatLonBBox(left=-180.0, top=-29, right=-175, bottom=-53),
+                ),
+            ),
+            (
+                LatLonBBox(left=-185, top=-29, right=-165, bottom=-53),
+                (
+                    LatLonBBox(left=175.0, top=-29, right=180, bottom=-53),
+                    LatLonBBox(left=-180, top=-29, right=-165, bottom=-53),
+                ),
+            ),
+            (
+                LatLonBBox(left=99, top=72, right=379, bottom=9),
+                (
+                    LatLonBBox(left=99, top=72, right=180, bottom=9),
+                    LatLonBBox(left=-180, top=72, right=19, bottom=9),
+                ),
+            ),
         ],
     )
     def test_antimeridian_split(self, latlon, result):
         res = latlon.am_split()
-        assert res == result
+        if res is None:
+            assert res == result
+        else:
+            assert res[0] == result[0]
+            assert res[1] == result[1]
 
 
 class TestLatLon:
