@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 from static_maps.geo import LatLonBBox
-from static_maps.mapper import GBIF, BaseMap, MapBox, get_token
+from static_maps.mapper import (
+    GBIF,
+    BaseMap,
+    MapBox,
+    get_token,
+    generate_gbif_mapbox_range,
+)
 from static_maps.tiles import Tile, TileArray, TileID
 from static_maps.imager import Image
 
@@ -245,6 +251,22 @@ class TestFullMapGBIF:
     def test_get_bbox_latlon(self, taxon_id):
         bbox = self.gbif.get_bbox(taxon_id)
         print(bbox)
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "input_species, map_size",
+        [
+            ("Bushtit", 512),
+            ("Bushtit", 1024),
+        ],
+    )
+    def test_final_range_map(self, input_species, map_size):
+        species, taxon_key = self.gbif.lookup_species(input_species)
+        range_map = generate_gbif_mapbox_range(
+            taxon_key, self.gbif, self.mapbox, map_size
+        )
+        assert range_map.size == (map_size, map_size)
+        range_map.save(f"test_final_range_map-{map_size}-{input_species}.png")
 
     # @pytest.mark.vcr("new")
     # @pytest.mark.parametrize(

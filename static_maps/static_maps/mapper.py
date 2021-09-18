@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
 import requests
+from copy import deepcopy
 
 import static_maps.imager as imager
 from static_maps.geo import (
@@ -12,8 +13,13 @@ from static_maps.geo import (
     split_bbox_half,
     remap_split_bbox,
 )
-from static_maps.imager import Image, debug_draw_pix_bbox, swap_left_right
-from static_maps.tiles import Tile, TileArray, TileID
+from static_maps.imager import (
+    Image,
+    debug_draw_pix_bbox,
+    swap_left_right,
+    find_crop_bounds,
+)
+from static_maps.tiles import Tile, TileArray, TileID, bounding_box_to_tiles
 
 
 def get_token():
@@ -44,8 +50,11 @@ class BaseMap:
         vals = {k.lower(): v for k, v in res.items() if k.lower() in bounding_values}
         return LatLonBBox(**vals)
 
-    def get_bbox_tiles(self, bbox: LatLonBBox) -> TileArray:
-        pass
+    def get_bbox_tiles(
+        self, bbox: LatLonBBox, start_zoom: int = 0, size: int = 512
+    ) -> TileArray:
+        tiles = bounding_box_to_tiles(bbox, start_zoom, size)
+        return tiles
 
     class AuthMissingError(Exception):
         def __init__(self, message="Missing auth for map.") -> None:
@@ -203,6 +212,7 @@ class GBIF(BaseMap):
     def get_tiles(
         self, taxon_key: int, tile_array: TileArray, mode: str = "hex", **params
     ) -> TileArray:
+        print("gt ta:", tile_array)
         params["taxonKey"] = params.get("taxon_key", taxon_key)
         if "mode" in params:
             mode = params.pop("mode")
@@ -366,3 +376,43 @@ class eBirdMap:
         # print(res)
         img = Image.open(BytesIO(res.content))
         return Tile(TileID(z=zoom, x=x, y=y), img=img, name=f"ebird-{rsid}")
+
+
+def generate_gbif_mapbox_range(
+    taxon_key: int, gbif: GBIF, mapbox: MapBox, map_size: int = 512
+) -> "Image":
+    """
+    Given a taxon_key, generates a range map of the given size.
+    Requires a configured GBIF object for the foreground, and a MapBox object for the base tiles.
+    Args:
+        taxon_key (int): taxon key to generate the map for.
+        gbif (GBIF): base range map object.
+        mapbox (MapBox): base layer map object.
+        map_size (int, optional): size of the map, in pixels to generate. Deftaults to 512.
+    Returns:
+        Image: The finished range map image.
+    """
+    range_bbox = gbif.get_bbox(taxon_key)
+    gbta = gbif.get_bbox_tiles(range_bbox, size=map_size // 2)
+    if len(gbta) == 2:
+        assert False
+    else:
+        gbta = gbta[0]
+
+    # TODO: Handle AM crossing and bad bbox.
+    mbta = deepcopy(gbta)
+    gbif_tiles = gbif.get_tiles(taxon_key, gbta)
+    mapbox_tiles = mapbox.get_tiles(mbta)
+
+    # This would be better handled if the TileArray knew the bounding box of the pixels it contained.
+    gbif_layer = gbif_tiles._composite_all()
+    gbif_layer.save(f"bbox_get-{taxon_key}-{map_size}.png")
+    _, _, _, _, _, fill_crop = find_crop_bounds(gbif_layer, map_size)
+
+    c_tiles = mapbox_tiles._composite_layer(gbif_tiles)
+    c_tiles.name = "gbif_range+mapbox"
+    # This is our output map, but it still needs to be cropped to the proper area.
+    uncropped_comp = c_tiles._composite_all()
+
+    final_image = uncropped_comp.crop(fill_crop)
+    return final_image
