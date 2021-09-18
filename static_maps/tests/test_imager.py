@@ -247,6 +247,13 @@ class TestImage:
         sp = imager.quad_split(res)
         assert all([self.compare_images(*a) for a in zip(sp, imgs)])
 
+    def test_paste_halves(self):
+        left = self.open_image("test_paste_halves_left.png")
+        right = self.open_image("test_paste_halves_right.png")
+        result = self.open_image("result_paste_halves.png")
+        res = imager.paste_halves(left, right)
+        assert self.compare_images(result, res)
+
     @pytest.mark.parametrize(
         "image_fn, crop_size, expected_bounds",
         [

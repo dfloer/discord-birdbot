@@ -387,3 +387,22 @@ def debug_draw_pix_bbox(
     background = Image.alpha_composite(background, new_img2)
     with open(f"{name}.png", "wb") as f:
         background.save(f, "png")
+
+
+def paste_halves(a: "Image", b: "Image") -> "Image":
+    """
+    Pastes image B to the right of image A
+    """
+    mode = a.mode
+    assert a.mode == b.mode
+    print("ph size:", a.size, b.size)
+    assert a.size[1] == b.size[1]
+    w, h = a.size
+    output_size = (w * 2, h)
+    # if mode == "RGB":
+    #     new_image = Image.new("RGB", output_size)
+    # else:
+    new_image = Image.new(mode, output_size)
+    new_image.paste(a, (0, 0))
+    new_image.paste(b, (w, 0))
+    return new_image
