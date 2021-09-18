@@ -433,33 +433,40 @@ class TestLatLonBbox:
         "latlon, zoom, pixels",
         [
             (
-                LatLonBBox(-54.75, -68.25, -54.85, -68.35),
-                3,
-                None,
+                LatLonBBox(west=-180.0, north=85.0, east=180.0, south=-85.0),
+                0,
+                PixBbox(left=0, top=256, right=256, bottom=0),
             ),
             (
                 LatLonBBox(-54.75, -68.25, -54.85, -68.35),
                 4,
-                None,
+                PixBbox(1425, 973, 1424, 970),
             ),
-            (LatLonBBox(-54.75, -68.25, 54.85, 68.35), 5, None),
-            (LatLonBBox(20.0, 40.0, 40.0, -40.0), 0, None),
             (
-                LatLonBBox(1.0, 2.0, 1.0, 4.0),
+                LatLonBBox(-54.75, 68.25, 54.85, -68.35),
+                5,
+                PixBbox(2850, 6247, 5344, 1939),
+            ),
+            (
+                LatLonBBox(20.0, 40.0, 40.0, -40.0),
                 0,
-                None,
+                PixBbox(142, 159, 156, 97),
             ),
             (
                 LatLonBBox(-54.75, -68.25, -54.85, -68.35),
                 15,
-                None,
+                PixBbox(2918537, 1991876, 2916206, 1985574),
             ),
         ],
     )
     def test_latlon_to_pixels(self, latlon, zoom, pixels):
         res = geo.bounding_lat_lon_to_pixels(latlon, zoom)
-        print(res)
-        # assert res == pixels
+        print("res", res)
+        assert [a for a in res] == [a for a in pixels]
+        # coordinate origin is lower left corner.
+        # make sure the results are in this order.
+        assert res.left >= res.left
+        assert res.top >= res.bottom
 
     @pytest.mark.parametrize(
         "latlon, result",

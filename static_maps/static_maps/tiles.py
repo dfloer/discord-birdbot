@@ -332,6 +332,14 @@ class TileArray(dict):
         bottom = min([x.bottom for x in bboxes])
         return geo.LatLonBBox(left=left, right=right, top=top, bottom=bottom)
 
+    @property
+    def pixel_bounds(self) -> imager.PixBbox:
+        """
+        Returns the maximal bounds that this TileArray covers in pixels.
+        This should probably be made to find the minimal bounding box of the actual pixels stored inside.
+        """
+        return geo.bounding_lat_lon_to_pixels(self.bounds, self.zoom)
+
     def ids_to_mercantiles(self) -> List[mercantile.Tile]:
         return [t.asmercantile for t in self.keys()]
 
@@ -588,6 +596,7 @@ def _bounding_box_candidates(
         x_dim, y_dim = bbox_pix.xy_dims
         print("xy dims:", bbox_pix.xy_dims, zoom_level)
         if x_dim > size or y_dim > size:
+            print("!!break at zoom:", zoom_level)
             break
 
         # First, get the bounding box for this zoom level.

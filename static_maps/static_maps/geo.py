@@ -310,7 +310,7 @@ def lat_lon_to_pixels(latlon: LatLon, zoom: int, tile_size: int = 256) -> Pixel:
         zoom (int): zoom level of the tile.
         tile_size (int, optional): Size of the tile. Defaults to 256.
     Returns:
-        (in, in): pixel (x, y) coordinate pair.
+        (int, int): pixel (x, y) coordinate pair.
     """
     equator = constants.equator
     # Need to shift the origin.
@@ -378,6 +378,7 @@ def bounding_lat_lon_to_pixels(
 ) -> PixBbox:
     """
     Convenience function for pixels_to_lat_lon() that takes a pixel bbox instead of just two pixels.
+    Note that that origin is the bottom left, not the top left as pillow expects.
     """
     tl = lat_lon_to_pixels(latlon.tl, zoom, tile_size)
     br = lat_lon_to_pixels(latlon.br, zoom, tile_size)

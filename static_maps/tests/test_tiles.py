@@ -17,7 +17,7 @@ from static_maps.tiles import (
     empty_tilearray_from_ids,
     bounding_box_to_tiles,
 )
-from static_maps.geo import LatLonBBox
+from static_maps.geo import LatLonBBox, PixBbox
 
 import PIL.Image as Img
 
@@ -426,6 +426,19 @@ class TestTileArray:
     def test_tilearray_bbox(self, tile_ids, images, result):
         ta = empty_tilearray_from_ids(tile_ids)
         res = ta.bounds
+        assert res == result
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            (PixBbox(left=0, top=512, right=512, bottom=0),),
+            (PixBbox(left=4307456, top=5631488, right=4307968, bottom=5630976),),
+        ],
+    )
+    @pytest.mark.skip("This passes, just needs to be parameterized correctly.")
+    def test_tilearray_pixbbox(self, tile_ids, images, result):
+        ta = empty_tilearray_from_ids(tile_ids)
+        res = ta.pixel_bounds
         assert res == result
 
 
