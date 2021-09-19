@@ -152,14 +152,17 @@ class TestBbox:
         "in_bbox, result",
         [
             (
-                (0, 256, 256, 0),
+                PixBbox(left=0, top=256, right=256, bottom=0),
                 (0, 0, 256, 256),
+            ),
+            (
+                PixBbox(left=216, top=512, right=728, bottom=1024),
+                (216, 512, 728, 1024),
             ),
         ],
     )
     def test_pillow(self, in_bbox, result):
-        r = PixBbox(*in_bbox)
-        assert r.pillow == result
+        assert in_bbox.pillow == result
 
 
 class TestImage:

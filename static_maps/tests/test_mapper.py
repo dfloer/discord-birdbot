@@ -257,6 +257,7 @@ class TestFullMapGBIF:
             ("Bushtit", 1024),
             ("Inaccessible Island Rail", 512),
             ("Inaccessible Island Rail", 1024),
+            ("Carolina Chickadee", 512),
         ],
     )
     def test_final_range_map_normal(self, input_species, map_size):
@@ -265,7 +266,7 @@ class TestFullMapGBIF:
             taxon_key, self.gbif, self.mapbox, map_size
         )
         assert range_map.size == (map_size, map_size)
-        range_map.save(f"test_final_range_map-{map_size}-{input_species}.png")
+        range_map.save(f"test_final_range_map-{map_size}-{taxon_key}.png")
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
@@ -285,7 +286,7 @@ class TestFullMapGBIF:
             taxon_key, self.gbif, self.mapbox, map_size
         )
         assert range_map.size == (map_size, map_size)
-        range_map.save(f"test_final_range_map-{map_size}-{input_species}.png")
+        range_map.save(f"test_final_range_map-{map_size}-{taxon_key}.png")
 
 
 class TestMiscMapper:

@@ -18,6 +18,7 @@ from static_maps.imager import (
     debug_draw_pix_bbox,
     swap_left_right,
     find_crop_bounds,
+    find_crop_bounds2,
 )
 from static_maps.tiles import Tile, TileArray, TileID, bounding_box_to_tiles
 
@@ -387,7 +388,7 @@ class eBirdMap:
 
 
 def generate_gbif_mapbox_range(
-    taxon_key: int, gbif: GBIF, mapbox: MapBox, map_size: int = 512
+    taxon_key: int, gbif: GBIF, mapbox: MapBox, map_size: int = 512, debug: bool = True
 ) -> "Image":
     """
     Given a taxon_key, generates a range map of the given size.
@@ -419,10 +420,11 @@ def generate_gbif_mapbox_range(
         mapbox_right, gbif_right = output_tiles[1].values()
         left = gbif_left._composite_all()
         right = gbif_right._composite_all()
-        left.save("am_left.png")
-        right.save("am_right.png")
         gbif_layer = imager.paste_halves(left, right)
-        gbif_layer.save("am_both.png")
+        if debug:
+            left.save("am_left.png")
+            right.save("am_right.png")
+            gbif_layer.save("am_both.png")
 
         c_tiles_left = mapbox_left._composite_layer(gbif_left)
         c_tiles_right = mapbox_right._composite_layer(gbif_right)
@@ -436,9 +438,33 @@ def generate_gbif_mapbox_range(
         c_tiles = mapbox_tiles._composite_layer(gbif_tiles)
         uncropped_result = c_tiles._composite_all()
 
+    swapped_image, crop_area, _, _, _, fill_crop = find_crop_bounds2(
+        gbif_layer, map_size
+    )
     # This would be better handled if the TileArray knew the bounding box of the pixels it contained.
-    swapped_image, _, _, _, _, fill_crop = find_crop_bounds(gbif_layer, map_size)
-    if swapped_image:
-        uncropped_result = swap_left_right(uncropped_result)
-    final_image = uncropped_result.crop(fill_crop)
+    fitted, center = find_crop_bounds(gbif_layer, map_size)
+    if debug:
+        uncropped = uncropped_result.copy()
+        if swapped_image:
+            gbif_layer.save(f"swapped_uncropped-{taxon_key}-{map_size}.png")
+            uncropped = swap_left_right(uncropped)
+        uncropped.save(f"uncropped-{taxon_key}-{map_size}.png")
+
+        debug_bounds = imager.draw_pixel_bounds(uncropped, crop_area)
+        debug_bounds.save(f"crop_area-{taxon_key}-{map_size}.png")
+        debug_bounds = imager.draw_pixel_bounds(uncropped, fill_crop)
+        debug_bounds.save(f"fill_crop-{taxon_key}-{map_size}.png")
+
+        debug_bounds = imager.draw_pixel_bounds(uncropped, center.pillow)
+        debug_bounds.save(f"center-{taxon_key}-{map_size}.png")
+        debug_bounds = imager.draw_pixel_bounds(uncropped, fitted.pillow)
+        debug_bounds.save(f"fitted-{taxon_key}-{map_size}.png")
+        print("bbox2:", fitted.pillow)
+        cropped = uncropped.crop(fitted.pillow)
+        cropped.save(f"fit_crop-{taxon_key}-{map_size}.png")
+        print("final crop area:", fill_crop, "2:", fitted.pillow)
+
+    final_image = uncropped_result.crop(fitted.pillow)
+    if debug:
+        final_image.save(f"final-{taxon_key}-{map_size}.png")
     return final_image

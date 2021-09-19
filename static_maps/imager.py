@@ -51,9 +51,11 @@ class PixBbox(BBoxBase):
     @property
     def pillow(self) -> Tuple[int]:
         """Returns pixel values, normalized for a top left orgin for pillow."""
-        new_top = self.bottom
-        new_bottom = self.top
-        return (self.left, new_top, self.right, new_bottom)
+        left = min(self.left, self.right)
+        right = max(self.left, self.right)
+        top = min(self.top, self.bottom)
+        bottom = max(self.top, self.bottom)
+        return left, top, right, bottom
 
 
 def transparency_composite(a: "Image", b: "Image", t: int = 200) -> "Image":
@@ -127,7 +129,52 @@ class ImageLoadError(Exception):
 #     return (left, upper, right, lower)
 
 
-def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
+def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple[PixBbox]:
+    """
+    Calculates the crop bounds for a given image. Returns two different crops.
+    For the first, returns a crop fitted within the bounds of the input image.
+        For the second,
+    Args:
+        image (Image): [description]
+        output_size (int, optional): [description]. Defaults to 512.
+
+    Raises:
+        NotRGBAError: [description]
+
+    Returns:
+        Tuple[PixBbox]: fitted_crop, center_crop
+    """
+    if image.mode != "RGBA":
+        raise NotRGBAError
+    bbox = image.getbbox()
+    size_x, size_y = image.size
+    center = bbox.center
+    left = center[0] - output_size // 2
+    upper = center[1] - output_size // 2
+    right = center[0] + output_size // 2
+    lower = center[1] + output_size // 2
+    crop_area = (left, upper, right, lower)
+    if left < 0:
+        left = 0
+        right = output_size
+    if upper < 0:
+        upper = 0
+        lower = output_size
+    if right > size_x:
+        right = size_x
+        left = right - output_size
+    if lower > size_y:
+        lower = size_y
+        upper = lower - output_size
+    fitted_crop = PixBbox(left=left, right=right, top=upper, bottom=lower)
+    center_crop = PixBbox(*crop_area)
+
+    # This could happen if there isn't a crop that fits.
+    assert fitted_crop.xy_dims == (output_size, output_size)
+    return fitted_crop, center_crop
+
+
+def find_crop_bounds2(image: "Image", output_size: int = 512) -> Tuple:
     """
     Calculates the crop for a given image.
     Args:
@@ -170,7 +217,6 @@ def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
     right = center[0] + output_size // 2
     lower = center[1] + output_size // 2
     crop_area = (left, upper, right, lower)
-    # print("ideal crop:", crop_area)
     extra_tiles = [0, 0, 0, 0]
     fill_left = left
     fill_upper = upper
@@ -192,22 +238,29 @@ def find_crop_bounds(image: "Image", output_size: int = 512) -> Tuple:
         fill_left + output_size,
         fill_upper + output_size,
     )
-    new_img = image.copy()
-    bg_img = image.copy()
-    box_img = ImageDraw.Draw(new_img)
-    box_img.rectangle(fill_crop, outline=(0, 255, 255), fill=(0, 0, 0, 0))
-    new_img.alpha_composite(bg_img)
-    with open("crop_area.png", "wb") as f:
-        new_img.save(f, "png")
 
     if swapped_image:
-        print("crop_area", crop_area)
-        print("center", center)
-        print("bbox", bbox)
-        print("extra_tiles", extra_tiles)
-        print("fill_crop", fill_crop)
+        print("crop_area:", crop_area)
+        print("center:", center)
+        print("bbox:", bbox)
+        print("extra_tiles:", extra_tiles)
+        print("fill_crop:", fill_crop)
 
     return swapped_image, crop_area, center, bbox, extra_tiles, fill_crop
+
+
+def draw_pixel_bounds(
+    image: "Image", box: Tuple[int], color: Tuple[int] = (0, 255, 255)
+) -> "Image":
+    new_img = Image.new("RGBA", image.size)
+    bg_img = image.copy()
+    box_img = ImageDraw.Draw(new_img)
+    box_img.rectangle(box, outline=color, fill=(0, 0, 0, 0))
+    if bg_img.mode == "RGBA":
+        bg_img.alpha_composite(new_img)
+    else:
+        bg_img.paste(new_img, mask=new_img)
+    return bg_img
 
 
 def swap_left_right(image):
