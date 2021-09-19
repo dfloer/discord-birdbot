@@ -136,6 +136,13 @@ class TestGBIF:
         exp = tile_size if tile_size is not None else 512
         assert gb.resolution == exp
 
+    def test_high_res_override(self):
+        assert mapbox.high_res is True
+        res = mapbox.get_tiles([TileID(0, 0, 0)], high_res=False)
+        assert res[TileID(0, 0, 0)].resolution == 256
+        res2 = mapbox.get_tiles([TileID(0, 0, 0)])
+        assert res2[TileID(0, 0, 0)].resolution == 512
+
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
         "map_type",
@@ -424,6 +431,7 @@ class TestEbird:
             ("baleag", 512),
             ("grycat", 512),
             ("kinpen1", 512),
+            ("carchi", 512),
         ],
     )
     def test_map_final(self, species_code, size):

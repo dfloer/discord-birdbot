@@ -134,10 +134,10 @@ class MapBox(BaseMap):
     high_res: bool = True
     map_name: str = "mapbox"
 
-    def get_tiles(self, tile_ids: List[TileID]) -> TileArray:
+    def get_tiles(self, tile_ids: List[TileID], **kwargs) -> TileArray:
         tile_array = TileArray(name="Mapbox")
         for tid in tile_ids:
-            tile_array[tid] = self.get_tile(tid)
+            tile_array[tid] = self.get_tile(tid, **kwargs)
         return tile_array
 
     def get_tile(self, tid: TileID, **kwargs) -> Tile:
@@ -156,7 +156,7 @@ class MapBox(BaseMap):
         """
         fmt = self.fmt
         style = self.style
-        high_res = self.high_res
+        high_res = kwargs.get("high_res", self.high_res)
         if "fmt" in kwargs:
             fmt = kwargs["fmt"]
         if "style" in kwargs:
@@ -363,6 +363,7 @@ class eBirdMap(BaseMap):
     max_zoom: int = 12
     base_url: str = "https://ebird.org/map/"
     map_tile_url: str = "https://geowebcache.birds.cornell.edu/ebird/gmaps"
+    species_url: str = "https://ebird.org/species/"
     """
     Generates an eBird range map.
     Note that this isn't using a documented API, and so could break at any time.
@@ -429,7 +430,7 @@ class eBirdMap(BaseMap):
         self, species_code: str, mapbox: MapBox, map_size: int = 512
     ) -> "Image":
         range_tiles = self.get_tiles(species_code, 0, map_size)
-        mapbox_tiles = [mapbox.get_tiles(a.copy()) for a in range_tiles]
+        mapbox_tiles = [mapbox.get_tiles(a.copy(), high_res=False) for a in range_tiles]
         if len(range_tiles) == 2:
             left = range_tiles[0]._composite_all()
             right = range_tiles[1]._composite_all()
