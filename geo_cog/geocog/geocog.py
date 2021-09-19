@@ -4,6 +4,7 @@ import sys
 from datetime import datetime
 from io import BytesIO
 from random import randint
+import traceback
 
 import discord
 from redbot.core import commands
@@ -11,14 +12,14 @@ from redbot.core import commands
 sys.path.append(os.getcwd())
 
 from ebird_lookup import ebird_lookup as ebl
-from static_maps.mapper import GBIF, MapBox, generate_gbif_mapbox_range, get_token
+from static_maps.mapper import GBIF, MapBox, eBirdMap, generate_gbif_mapbox_range, get_token
 
 
 class GeoCog(commands.Cog):
     def __init__(self, bot):
         self.mapbox = MapBox(token=get_token())
         self.gbif = GBIF()
-        # self.ebird = eBirdMap()
+        self.ebird = eBirdMap()
         self.typesense = ebl.TypeSenseSearch(api_key="changeMe!")
         self.typesense.connect()
         self.meili = ebl.MeilisearchSearch(api_key="changeMe!")
@@ -88,40 +89,49 @@ class GeoCog(commands.Cog):
         else:
             await ctx.send("Lookup failed.")
 
-    # @commands.command(
-    #     brief="Gets a lat/lon from an address, or vice versa.",
-    #     help="Gets a lat/lon from an address, or vice versa. Mapbox version",
-    #     usage="[query]",
-    # )
-    # async def ebirdmap(self, ctx, *, arg):
-    #     ab = randint(0, 1)
-    #     backend = [self.typesense, self.meili][ab]
-    #     backend_name = ["typesense", "meili"][ab]
-    #     res = self.find_species_from_name(arg, backend)
-    #     res_img = None
-    #     if res:
-    #         print("res:", res, backend_name)
-    #         species_code = res["species_code"]
-    #         common_name = res["name"]
-    #         scientific_name = res["scientific_name"]
-    #         title = f"eBird range map for: {common_name} (_{scientific_name}_)."
-    #         try:
-    #             start = datetime.now()
-    #             res_img = self.ebird.get_range_map(species_code, 0)
-    #             d = BytesIO()
-    #             res_img.save(d, "png")
-    #             img = BytesIO(d.getvalue())
-    #             end = datetime.now()
-    #             desc = f"Map generated in {(end - start).seconds}s. Search: {backend_name}."
-    #             embed = discord.Embed(title=title, description=desc, color=0x007F00)
-    #             file = discord.File(img, filename=f"{species_code}.png")
-    #         except Exception:
-    #             traceback.print_exc()
-    #             pass
+    @commands.command(
+        brief="Gets a lat/lon from an address, or vice versa.",
+        help="Gets a lat/lon from an address, or vice versa. Mapbox version",
+        usage="[query]",
+    )
+    async def ebirdmap(self, ctx, *, arg):
+        ab = randint(0, 1)
+        backend = [self.typesense, self.meili][ab]
+        backend_name = ["typesense", "meili"][ab]
+        res = self.find_species_from_name(arg, backend)
+        res_img = None
+        if res:
+            print("res:", res, backend_name)
+            species_code = res["species_code"]
+            common_name = res["name"]
+            scientific_name = res["scientific_name"]
+            title = f"{common_name} (_{scientific_name}_)."
+            ebird_url = f"{self.ebird.species_url}{species_code}"
+            try:
+                start = datetime.now()
+                res_img = self.ebird.make_map(species_code, self.mapbox, 512)
+                res_img.save(f"geocog-ebird-{species_code}.png")
+                img = res_img.asbytes()
+                end = datetime.now()
+                desc = "Source: eBird, Mapbox."
+                desc += f"\nDebug: generated in: {(end - start).seconds}s. Search: {backend_name}."
+                embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F007F)
+                file = discord.File(img, filename=f"{species_code}.png")
+            except Exception:
+                traceback.print_exc()
+                pass
 
-    #     if res_img:
-    #         await ctx.send(file=file, embed=embed)
-    #     elif not res:
-    #         await ctx.send(f"Lookup of {arg} failed.")
-    #     else:
-    #         await ctx.send(f"Image generation failed.")
+        if res_img:
+            await ctx.send(file=file, embed=embed)
+        elif not res:
+            embed = discord.Embed(
+                title="Error:", description=f"Lookup of {arg} failed.", color=0xFF0000
+            )
+            await ctx.send(embed=embed)
+        else:
+            embed = discord.Embed(
+                    title="Error:",
+                    description="Range map creation failed.",
+                    color=0xFF0000,
+                )
+            await ctx.send(embed=embed)
