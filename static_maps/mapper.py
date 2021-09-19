@@ -391,7 +391,6 @@ class eBirdMap(BaseMap):
     def get_tiles(self, species_code: str, zoom: int = 0, map_size: int = 512):
         bbox = self.get_bbox(species_code)
         tiles = self.get_bbox_tiles(bbox, zoom, map_size)
-        print("ebgt", tiles)
         # eBird doesn't handle crossing the antimeridian well, so we need to "improvise" one.
         rsid = ""
         if not tiles:
@@ -403,7 +402,7 @@ class eBirdMap(BaseMap):
             print("ebgt2")
             pprint(tiles)
         if tiles[0].zoom >= 6 or not rsid:
-            rsid = self.get_rsid(species_code, tiles.zoom)
+            rsid = self.get_rsid(species_code, tiles[0].zoom)
 
         filled_tiles = [
             TileArray.from_dict({tid: self.download_tile(tid, rsid) for tid in a})
@@ -421,7 +420,7 @@ class eBirdMap(BaseMap):
             "CQL_FILTER": f"result_set_id='{rsid}'",
         }
         url = self.map_tile_url
-        # print(f"Getting url: {url}")
+        print(f"ebird url: {url}")
         resp = self.rget(url, params=params)
         img = imager.image_from_response(resp)
         return Tile(tile_id, img=img, name=f"ebird-{rsid}")

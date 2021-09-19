@@ -303,16 +303,16 @@ class TestBaseMap:
                 256,
                 None,
                 (
-                    LatLonBBox(bottom=28.3, left=164.5, top=53.3, right=180.0),
-                    LatLonBBox(bottom=28.3, left=-178.6, top=53.3, right=-174.4),
-                    LatLonBBox(bottom=28.3, left=164.5, top=53.3, right=-174.4),
+                    LatLonBBox(bottom=-53.3, left=164.5, top=-28.3, right=180.0),
+                    LatLonBBox(bottom=-53.3, left=-178.6, top=-28.3, right=-174.4),
+                    LatLonBBox(bottom=-53.3, left=164.5, top=-28.3, right=-174.4),
                 ),
             ),
             (
                 "test_bbox_normal.png",
                 0,
                 256,
-                LatLonBBox(bottom=-52.5, left=-129.4, top=-13.9, right=-88.6),
+                LatLonBBox(bottom=13.9, left=-129.4, top=52.5, right=-88.6),
                 None,
             ),
         ],
@@ -417,6 +417,13 @@ class TestEbird:
         "species_code, size",
         [
             ("tui1", 512),
+            ("bushti", 512),
+            ("pilwoo", 512),
+            ("inirai1", 512),
+            ("bkpwar", 512),
+            ("baleag", 512),
+            ("grycat", 512),
+            ("kinpen1", 512),
         ],
     )
     def test_map_final(self, species_code, size):
