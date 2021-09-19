@@ -10,6 +10,7 @@ from static_maps.mapper import (
     MapBox,
     get_token,
     generate_gbif_mapbox_range,
+    eBirdMap,
 )
 from static_maps.tiles import Tile, TileArray, TileID
 from static_maps.imager import Image
@@ -289,7 +290,7 @@ class TestFullMapGBIF:
         range_map.save(f"test_final_range_map-{map_size}-{taxon_key}.png")
 
 
-class TestMiscMapper:
+class TestBaseMap:
     test_img_path = Path("./static_maps/tests/images")
     base_map = BaseMap("")
 
@@ -302,20 +303,16 @@ class TestMiscMapper:
                 256,
                 None,
                 (
-                    LatLonBBox(28.3, 164.5, 53.3, 180.0),
-                    LatLonBBox(28.3, -178.6, 53.3, -174.4),
+                    LatLonBBox(bottom=28.3, left=164.5, top=53.3, right=180.0),
+                    LatLonBBox(bottom=28.3, left=-178.6, top=53.3, right=-174.4),
+                    LatLonBBox(bottom=28.3, left=164.5, top=53.3, right=-174.4),
                 ),
             ),
             (
                 "test_bbox_normal.png",
                 0,
                 256,
-                LatLonBBox(
-                    left=-52.5,
-                    top=-129.4,
-                    right=-13.9,
-                    bottom=-88.6,
-                ),
+                LatLonBBox(bottom=-52.5, left=-129.4, top=-13.9, right=-88.6),
                 None,
             ),
         ],
@@ -330,3 +327,98 @@ class TestMiscMapper:
         else:
             assert res[0] == bbox_parts[0]
             assert res[1] == bbox_parts[1]
+            assert res[2] == bbox_parts[2]
+
+
+class TestEbird:
+    ebird: eBirdMap = eBirdMap()
+    mapbox: MapBox = MapBox(token=get_token(), high_res=False)
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "species_code, expected_bbox",
+        [
+            (
+                "bushti",
+                LatLonBBox(
+                    -128.796028798097,
+                    51.8596628170432,
+                    -89.2701562968385,
+                    14.126239979566,
+                ),
+            ),
+            (
+                "tui1",
+                LatLonBBox(
+                    -178.203369424671,
+                    -28.7802470429875,
+                    179.326113654898,
+                    -52.691212723642,
+                ),
+            ),
+            (
+                "",
+                None,
+            ),
+        ],
+    )
+    def test_get_bbox(self, species_code, expected_bbox):
+        res = self.ebird.get_bbox(species_code)
+        assert res == expected_bbox
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "species_code",
+        [
+            "bushti",
+        ],
+    )
+    def test_get_rsid(self, species_code):
+        res = self.ebird.get_rsid(species_code)
+        assert res
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "tile_id, rsid",
+        [
+            (
+                TileID(0, 0, 0),
+                "RS108970032",
+            ),
+        ],
+    )
+    def test_get_tile(self, tile_id, rsid):
+        res = self.ebird.download_tile(tile_id, rsid)
+        assert res.img
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "species_code, expected_ids",
+        [
+            (
+                "tui1",
+                [(4, 15, 9), (4, 15, 10), (4, 0, 9), (4, 0, 10)],
+            )
+        ],
+    )
+    def test_get_tiles(self, species_code, expected_ids):
+        res = self.ebird.get_tiles(species_code)
+        print("res:\n", res)
+        for x in res:
+            for t in x.values():
+                t.save()
+
+        for e in res:
+            for x in e:
+                assert tuple(x) in expected_ids
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "species_code, size",
+        [
+            ("tui1", 512),
+        ],
+    )
+    def test_map_final(self, species_code, size):
+        res = self.ebird.make_map(species_code, self.mapbox, size)
+        res.save(f"final-ebird-{species_code}_{size}.png")
