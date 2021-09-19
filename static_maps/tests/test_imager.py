@@ -279,12 +279,5 @@ class TestImage:
     )
     def test_find_crop_bounds(self, image_fn, crop_size, expected_bounds):
         image = self.open_image(image_fn)
-        (
-            swapped_image,
-            crop_area,
-            center,
-            bbox,
-            extra_tiles,
-            fill_crop,
-        ) = imager.find_crop_bounds(image, crop_size)
-        assert crop_area == expected_bounds
+        fitted_crop, center_crop = imager.find_crop_bounds(image, crop_size)
+        assert fitted_crop == expected_bounds
