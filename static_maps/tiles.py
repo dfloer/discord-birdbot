@@ -537,7 +537,7 @@ def bounding_box_to_tiles(
     bad_bbox = False
     # Is this likely to be an incorrect bounding box that forgets that the map is actually a cynlinder?
     # This is really just a heuristic test for an incorrect bounding box, because it's hard to deal with bad data.
-    if -180 < w < -178 or 178 < e < 180:
+    if -180 < w < -178 and 178 < e < 180:
         print("Probable incorrect bounding box due to antimeridian crossing.")
         if alt_bbox:
             print("alt bounding box override.")
