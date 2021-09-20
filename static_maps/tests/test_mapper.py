@@ -373,9 +373,9 @@ class TestEbird:
                     -115.321299536305,
                     43.2077783892461,
                     -113.524668968066,
-                    41.9867319031071
-                )
-            )
+                    41.9867319031071,
+                ),
+            ),
         ],
     )
     def test_get_bbox(self, species_code, expected_bbox):
@@ -430,20 +430,22 @@ class TestEbird:
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
-        "species_code, size",
+        "species_code, size, no_data",
         [
-            ("tui1", 512),
-            ("bushti", 512),
-            ("pilwoo", 512),
-            ("inirai1", 512),
-            ("bkpwar", 512),
-            ("baleag", 512),
-            ("grycat", 512),
-            ("kinpen1", 512),
-            ("carchi", 512),
-            ("arcter", 512),
+            ("tui1", 512, False),
+            ("bushti", 512, False),
+            ("pilwoo", 512, False),
+            ("inirai1", 512, False),
+            ("bkpwar", 512, False),
+            ("baleag", 512, False),
+            ("grycat", 512, False),
+            ("kinpen1", 512, False),
+            ("carchi", 512, False),
+            ("arcter", 512, False),
+            ("dodo1", 512, True),
         ],
     )
-    def test_map_final(self, species_code, size):
-        res = self.ebird.make_map(species_code, self.mapbox, size)
+    def test_map_final(self, species_code, size, no_data):
+        res, res_no_data = self.ebird.make_map(species_code, self.mapbox, size)
+        assert res_no_data == no_data
         res.save(f"final-ebird-{species_code}_{size}.png")

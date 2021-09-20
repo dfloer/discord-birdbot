@@ -109,14 +109,21 @@ class GeoCog(commands.Cog):
             ebird_url = f"{self.ebird.species_url}{species_code}"
             try:
                 start = datetime.now()
-                res_img = self.ebird.make_map(species_code, self.mapbox, 512)
-                res_img.save(f"geocog-ebird-{species_code}.png")
+                res_img, no_data = self.ebird.make_map(species_code, self.mapbox, 512)
                 img = res_img.asbytes()
-                end = datetime.now()
-                desc = "Source: eBird, Mapbox."
-                desc += f"\nDebug: generated in: {(end - start).seconds}s. Search: {backend_name}."
-                embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F007F)
-                file = discord.File(img, filename=f"{species_code}.png")
+                if not no_data:
+                    res_img.save(f"geocog-ebird-{species_code}.png")
+                    end = datetime.now()
+                    desc = "Source: eBird, Mapbox."
+                    desc += f"\nDebug: generated in: {(end - start).seconds}s. Search: {backend_name}."
+                    embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F007F)
+                    file = discord.File(img, filename=f"{species_code}.png")
+                else:
+                    desc = "**No data on eBird**.\nSource: eBird, Mapbox."
+                    desc += f"\nDebug: no data, Search: {backend_name}."
+                    embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F0000)
+                    file = discord.File(img, filename=f"{species_code}.png")
+
             except Exception:
                 traceback.print_exc()
                 pass

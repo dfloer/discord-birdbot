@@ -124,6 +124,46 @@ class BaseMap:
             print("combined:", combined)
             return [LatLonBBox(*left), LatLonBBox(*right), LatLonBBox(*combined)]
 
+    @staticmethod
+    def generate_range_map(
+        bg_layer: "BaseMap",
+        fg_layer: "BaseMap",
+        map_size: int,
+        range_tiles: List[TileArray],
+        transparency: int = 200,
+    ) -> Image:
+        """
+        Generates a range map with the given foreground layer and background layer
+        Args:
+            bg_layer (BaseMap): Map layer
+            fg_layer (BaseMap): Range map layer
+            map_size (int): Size of the map, in pixels.
+            range_tiles (List[TileArray]): Tiles to generate the map for.
+            transparency (int, optional): Transparency of the range layer. Defaults to 200.
+        Returns:
+            Image: Finished range map.
+        """
+        high_res = True if fg_layer._tile_size == 512 else False
+        bg_tiles = [
+            bg_layer.get_tiles(a.copy(), high_res=high_res) for a in range_tiles
+        ]
+        if len(range_tiles) == 2:
+            left = range_tiles[0]._composite_all()
+            right = range_tiles[1]._composite_all()
+            fg_layer = imager.paste_halves(left, right)
+            m_left = bg_tiles[0]._composite_all()
+            m_right = bg_tiles[1]._composite_all()
+            bg_layer = imager.paste_halves(m_left, m_right)
+        else:
+            fg_layer = range_tiles[0]._composite_all()
+            bg_layer = bg_tiles[0]._composite_all()
+        fitted, center = find_crop_bounds(fg_layer, map_size)
+        uncropped_image = imager.transparency_composite(
+            bg_layer, fg_layer, transparency
+        )
+        cropped = uncropped_image.crop(fitted.pillow)
+        return cropped
+
 
 @dataclass
 class MapBox(BaseMap):
@@ -357,6 +397,14 @@ class GBIF(BaseMap):
         bbox = LatLonBBox(left=left, top=top, right=right, bottom=bottom)
         return bbox
 
+    def make_map(
+        self, taxon_key: str, mapbox: MapBox, map_size: int = 512, start_zoom: int = 0
+    ) -> "Image":
+        range_bbox = self.get_bbox(taxon_key)
+        range_tiles = self.get_bbox_tiles(range_bbox, size=map_size // 2)
+        range_map = self.generate_range_map(mapbox, self, map_size, range_tiles)
+        return range_map
+
 
 @dataclass
 class eBirdMap(BaseMap):
@@ -364,6 +412,7 @@ class eBirdMap(BaseMap):
     base_url: str = "https://ebird.org/map/"
     map_tile_url: str = "https://geowebcache.birds.cornell.edu/ebird/gmaps"
     species_url: str = "https://ebird.org/species/"
+    _tile_size: int = field(default=256, init=False, repr=True)
     """
     Generates an eBird range map.
     Note that this isn't using a documented API, and so could break at any time.
@@ -391,6 +440,8 @@ class eBirdMap(BaseMap):
 
     def get_tiles(self, species_code: str, zoom: int = 0, map_size: int = 512):
         bbox = self.get_bbox(species_code)
+        if not bbox:
+            return []
         tiles = self.get_bbox_tiles(bbox, zoom, map_size)
         # eBird doesn't handle crossing the antimeridian well, so we need to "improvise" one.
         rsid = ""
@@ -427,26 +478,18 @@ class eBirdMap(BaseMap):
         return Tile(tile_id, img=img, name=f"ebird-{rsid}")
 
     def make_map(
-        self, species_code: str, mapbox: MapBox, map_size: int = 512, start_zoom: int = 0
+        self,
+        species_code: str,
+        mapbox: MapBox,
+        map_size: int = 512,
+        start_zoom: int = 0,
     ) -> "Image":
         range_tiles = self.get_tiles(species_code, start_zoom, map_size)
-        mapbox_tiles = [mapbox.get_tiles(a.copy(), high_res=False) for a in range_tiles]
-        if len(range_tiles) == 2:
-            left = range_tiles[0]._composite_all()
-            right = range_tiles[1]._composite_all()
-            ebird_layer = imager.paste_halves(left, right)
-            m_left = mapbox_tiles[0]._composite_all()
-            m_right = mapbox_tiles[1]._composite_all()
-            mapbox_layer = imager.paste_halves(m_left, m_right)
-        else:
-            ebird_layer = range_tiles[0]._composite_all()
-            mapbox_layer = mapbox_tiles[0]._composite_all()
-        fitted, center = find_crop_bounds(ebird_layer, map_size)
-        # ebird_layer.save(f"mm-{species_code}_ebird.png")
-        # mapbox_layer.save(f"mm-{species_code}_mapbox.png")
-        uncropped_image = imager.transparency_composite(mapbox_layer, ebird_layer)
-        cropped = uncropped_image.crop(fitted.pillow)
-        return cropped
+        if not range_tiles:
+            img = mapbox.get_tile(TileID(0, 0, 0), high_res=True).img
+            return img, True
+        range_map = self.generate_range_map(mapbox, self, map_size, range_tiles)
+        return range_map, False
 
 
 def generate_gbif_mapbox_range(
