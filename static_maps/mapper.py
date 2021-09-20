@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
+from pprint import pprint
 import requests
 from copy import deepcopy
+from json.decoder import JSONDecodeError
 
 import static_maps.imager as imager
 from static_maps.geo import (
@@ -46,15 +48,22 @@ class BaseMap:
             return None
 
     def get_bbox_meta(self, bbox_url: str, url_params: Dict = {}) -> requests.Response:
-        res = requests.get(self.base_url + bbox_url, params=url_params).json()
+        try:
+            res = requests.get(self.base_url + bbox_url, params=url_params).json()
+        except JSONDecodeError:
+            return None
         bounding_values = LatLonBBox(0, 0, 0, 0).all_aliases
         vals = {k.lower(): v for k, v in res.items() if k.lower() in bounding_values}
         return LatLonBBox(**vals)
 
     def get_bbox_tiles(
-        self, bbox: LatLonBBox, start_zoom: int = 0, size: int = 512
+        self,
+        bbox: LatLonBBox,
+        start_zoom: int = 0,
+        size: int = 512,
+        alt_bbox: bool = False,
     ) -> TileArray:
-        tiles = bounding_box_to_tiles(bbox, start_zoom, size)
+        tiles = bounding_box_to_tiles(bbox, start_zoom, size, alt_bbox)
         return tiles
 
     class AuthMissingError(Exception):
@@ -62,7 +71,12 @@ class BaseMap:
             self.message = message
             super().__init__(self.message)
 
-    def find_image_bbox(self, test_img: Image, zoom: int = 0) -> List[LatLonBBox]:
+    def rget(self, url, **kwargs):
+        return requests.get(url, **kwargs)
+
+    def find_image_bbox(
+        self, test_img: Union["Image", Tile], zoom: int = 0
+    ) -> List[LatLonBBox]:
         """
         Given an image, finds a lat lon bounding box for the image.
         If the image is split across the antimeridian (-180/180) then it returns a split bounding box.
@@ -73,8 +87,10 @@ class BaseMap:
             zoom (int, optional): Zoom level of the input time. Defaults to 0.
                 At zoom > 0, this will simply return the latlon bounds for a tile.
         Returns:
-            List[LatLonBBox]: One bounding box covering all of the pixels in the picture. Two is crossing the antimeridian results in a tigher bounding box.
+            List[LatLonBBox]: One bounding box covering all of the pixels in the picture. three is crossing the antimeridian results in a tigher bounding box, with the unsplit version.
         """
+        if isinstance(test_img, Tile):
+            test_img = test_img.img
         tile_size = test_img.size[0]
         bbox = test_img.getbbox()
         print("bbox:", bbox)
@@ -83,9 +99,11 @@ class BaseMap:
 
         if zoom > 0 or swapped_bbox.area >= bbox.area:
             res = bounding_pixels_to_lat_lon(bbox, zoom, tile_size)
-            return [LatLonBBox(*res)]
+            return [None, None, LatLonBBox(*res)]
         else:
             left_half, right_half = split_bbox_half(swapped_bbox, tile_size)
+            print("fiblh", left_half)
+            print("fibrh", right_half)
             remap_left_half = remap_split_bbox(left_half, tile_size)
             remap_right_half = remap_split_bbox(right_half, tile_size)
 
@@ -97,8 +115,54 @@ class BaseMap:
 
             left = bounding_pixels_to_lat_lon(remap_left_half, zoom, tile_size)
             right = bounding_pixels_to_lat_lon(remap_right_half, zoom, tile_size)
+            print("fibll:", left)
+            print("fibrr:", right)
+            combined = bounding_pixels_to_lat_lon(swapped_bbox, zoom, tile_size)
+            # Remap back from the prime-meridian to the antimeriedian.
+            combined.left = combined.left + 180
+            combined.right = combined.right - 180
+            print("combined:", combined)
+            return [LatLonBBox(*left), LatLonBBox(*right), LatLonBBox(*combined)]
 
-            return [LatLonBBox(*left), LatLonBBox(*right)]
+    @staticmethod
+    def generate_range_map(
+        bg_layer: "BaseMap",
+        fg_layer: "BaseMap",
+        map_size: int,
+        range_tiles: List[TileArray],
+        transparency: int = 200,
+    ) -> Image:
+        """
+        Generates a range map with the given foreground layer and background layer
+        Args:
+            bg_layer (BaseMap): Map layer
+            fg_layer (BaseMap): Range map layer
+            map_size (int): Size of the map, in pixels.
+            range_tiles (List[TileArray]): Tiles to generate the map for.
+            transparency (int, optional): Transparency of the range layer. Defaults to 200.
+        Returns:
+            Image: Finished range map.
+        """
+        high_res = True if fg_layer._tile_size == 512 else False
+        bg_tiles = [
+            bg_layer.get_tiles(a.copy(), high_res=high_res) for a in range_tiles
+        ]
+        if len(range_tiles) == 2:
+            left = range_tiles[0]._composite_all()
+            right = range_tiles[1]._composite_all()
+            fg_layer = imager.paste_halves(left, right)
+            m_left = bg_tiles[0]._composite_all()
+            m_right = bg_tiles[1]._composite_all()
+            bg_layer = imager.paste_halves(m_left, m_right)
+        else:
+            fg_layer = range_tiles[0]._composite_all()
+            bg_layer = bg_tiles[0]._composite_all()
+        fitted, center = find_crop_bounds(fg_layer, map_size)
+        uncropped_image = imager.transparency_composite(
+            bg_layer, fg_layer, transparency
+        )
+        cropped = uncropped_image.crop(fitted.pillow)
+        return cropped
 
 
 @dataclass
@@ -110,10 +174,10 @@ class MapBox(BaseMap):
     high_res: bool = True
     map_name: str = "mapbox"
 
-    def get_tiles(self, tile_ids: List[TileID]) -> TileArray:
+    def get_tiles(self, tile_ids: List[TileID], **kwargs) -> TileArray:
         tile_array = TileArray(name="Mapbox")
         for tid in tile_ids:
-            tile_array[tid] = self.get_tile(tid)
+            tile_array[tid] = self.get_tile(tid, **kwargs)
         return tile_array
 
     def get_tile(self, tid: TileID, **kwargs) -> Tile:
@@ -132,7 +196,7 @@ class MapBox(BaseMap):
         """
         fmt = self.fmt
         style = self.style
-        high_res = self.high_res
+        high_res = kwargs.get("high_res", self.high_res)
         if "fmt" in kwargs:
             fmt = kwargs["fmt"]
         if "style" in kwargs:
@@ -333,41 +397,70 @@ class GBIF(BaseMap):
         bbox = LatLonBBox(left=left, top=top, right=right, bottom=bottom)
         return bbox
 
+    def make_map(
+        self, taxon_key: str, mapbox: MapBox, map_size: int = 512, start_zoom: int = 0
+    ) -> "Image":
+        range_bbox = self.get_bbox(taxon_key)
+        range_tiles = self.get_bbox_tiles(range_bbox, size=map_size // 2)
+        range_map = self.generate_range_map(mapbox, self, map_size, range_tiles)
+        return range_map
+
 
 @dataclass
-class eBirdMap:
+class eBirdMap(BaseMap):
     max_zoom: int = 12
-    map_base_url: str = "https://ebird.org/map/"
+    base_url: str = "https://ebird.org/map/"
     map_tile_url: str = "https://geowebcache.birds.cornell.edu/ebird/gmaps"
+    species_url: str = "https://ebird.org/species/"
+    _tile_size: int = field(default=256, init=False, repr=True)
     """
     Generates an eBird range map.
     Note that this isn't using a documented API, and so could break at any time.
     """
 
-    def get_bbox(self, species_code: str, zoom: int = 0) -> LatLonBBox:
+    def get_bbox(self, species_code: str) -> LatLonBBox:
         params = {"rsid": "", "speciesCode": species_code}
-        url = self.map_base_url + "env"
-        bbox = self.get_bbox_meta(url, params)
+        endpoint = "env"
+        bbox = self.get_bbox_meta(endpoint, params)
         print("ebird bbox: ", bbox)
         return bbox
 
-    def get_tiles(self, species_code, zoom):
-        tile_ids = self.get_bbox(species_code, zoom)
-        grid_scale = 20 if tile_ids[0].z >= 6 else 100
-        r = requests.get(
-            f"https://ebird.org/map/rsid?speciesCode={species_code}&gridScale={grid_scale}"
-        )
-        rsid = r.content.decode("ascii")
-        print("rsid: ", rsid, "tiles: ", len(tile_ids))
-        tiles = []
-        for t in tile_ids:
-            print(t)
-            tile = self.download_tile(zoom=t.z, x=t.x, y=t.y, rsid=rsid)
-            # print("Tile: ", tile)
-            tile.name = f"ebird-{species_code}"
-            tiles += [tile]
-            # print(tile.z, tile.x, tile.y, tile.center, tile)
-        return tiles
+    def get_rsid(self, species_code: str, zoom: int = 0) -> str:
+        grid_scale = 20 if zoom >= 6 else 100
+        url = self.base_url + "rsid"
+        params = {
+            "speciesCode": species_code,
+            "gridScale": grid_scale,
+        }
+        resp = self.rget(url, params=params)
+        try:
+            return resp.content.decode("ascii")
+        except Exception:
+            return None
+
+    def get_tiles(self, species_code: str, zoom: int = 0, map_size: int = 512):
+        bbox = self.get_bbox(species_code)
+        if not bbox:
+            return []
+        tiles = self.get_bbox_tiles(bbox, zoom, map_size)
+        # eBird doesn't handle crossing the antimeridian well, so we need to "improvise" one.
+        rsid = ""
+        if not tiles:
+            rsid = self.get_rsid(species_code, 0)
+            proxy_tile = self.download_tile(TileID(0, 0, 0), rsid)
+            _, _, proxy_bbox = self.find_image_bbox(proxy_tile.img, 0)
+            print("proxy bbox:", proxy_bbox)
+            tiles = self.get_bbox_tiles(proxy_bbox, zoom, map_size, True)
+            print("ebgt2")
+            pprint(tiles)
+        if tiles[0].zoom >= 6 or not rsid:
+            rsid = self.get_rsid(species_code, tiles[0].zoom)
+
+        filled_tiles = [
+            TileArray.from_dict({tid: self.download_tile(tid, rsid) for tid in a})
+            for a in tiles
+        ]
+        return filled_tiles
 
     def download_tile(self, tile_id: TileID, rsid: str) -> Tile:
         params = {
@@ -378,13 +471,25 @@ class eBirdMap:
             "y": tile_id.y,
             "CQL_FILTER": f"result_set_id='{rsid}'",
         }
-        # url = f"https://geowebcache.birds.cornell.edu/ebird/gmaps?layers=EBIRD_GRIDS_WS2&format=image/png&zoom={zoom}&x={x}&y={y}&CQL_FILTER=result_set_id='{rsid}'"
         url = self.map_tile_url
-        # print(f"Getting url: {url}")
-        res = requests.get(url, params=params)
-        # print(res)
-        img = Image.open(BytesIO(res.content))
+        print(f"ebird url: {url}")
+        resp = self.rget(url, params=params)
+        img = imager.image_from_response(resp)
         return Tile(tile_id, img=img, name=f"ebird-{rsid}")
+
+    def make_map(
+        self,
+        species_code: str,
+        mapbox: MapBox,
+        map_size: int = 512,
+        start_zoom: int = 0,
+    ) -> "Image":
+        range_tiles = self.get_tiles(species_code, start_zoom, map_size)
+        if not range_tiles:
+            img = mapbox.get_tile(TileID(0, 0, 0), high_res=True).img
+            return img, True
+        range_map = self.generate_range_map(mapbox, self, map_size, range_tiles)
+        return range_map, False
 
 
 def generate_gbif_mapbox_range(

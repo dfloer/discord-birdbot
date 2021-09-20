@@ -7,9 +7,53 @@ import static_maps.constants as constants
 
 Point = namedtuple("Point", ("x", "y"))
 Pixel = namedtuple("Pixel", ("x", "y"))
-LatLon = namedtuple("LatLon", ("lat", "lon"))
 
 BBoxT = Union["BBoxBase", "DynamicBBox", "LatLonBBox", "PixBbox"]
+
+
+@dataclass
+class LatLon:
+    lat: Union[int, float]
+    lon: Union[int, float]
+
+    def get_radius(self, d: int) -> "LatLonBBox":
+        """
+        Gets a bounding box for a circle at a radius from the current point.
+        Args:
+            d (int): distance (radius) in km.
+        Returns:
+            LatLonBBox: Bounding box centered on this point's coordinates.
+        """
+        lat_r = math.radians(
+            min(max(self.lat, -constants.max_latitude), constants.max_latitude)
+        )
+        lon_r = math.radians(self.lon)
+        r = (d * 1000) / constants.earth_radius
+        north = math.asin(
+            math.sin(lat_r) * math.cos(r) + math.cos(lat_r) * math.sin(r) * math.cos(0)
+        )
+        south = math.asin(
+            math.sin(lat_r) * math.cos(r)
+            + math.cos(lat_r) * math.sin(r) * math.cos(math.pi)
+        )
+
+        west = lon_r + math.atan2(
+            math.sin(3 * math.pi / 2) * math.sin(r) * math.cos(north),
+            math.cos(r) - math.sin(lat_r) * math.sin(lat_r),
+        )
+        east = lon_r + math.atan2(
+            math.sin(math.pi / 2) * math.sin(r) * math.cos(south),
+            math.cos(r) - math.sin(lat_r) * math.sin(lat_r),
+        )
+        north = min(math.degrees(north), constants.max_latitude)
+        south = max(math.degrees(south), -constants.max_latitude)
+        east = math.degrees(east)
+        west = math.degrees(west)
+
+        return LatLonBBox(left=west, top=north, right=east, bottom=south)
+
+    def __iter__(self):
+        return iter((self.lat, self.lon))
 
 
 @dataclass
@@ -315,19 +359,12 @@ def lat_lon_to_pixels(latlon: LatLon, zoom: int, tile_size: int = 256) -> Pixel:
     Returns:
         (int, int): pixel (x, y) coordinate pair.
     """
-    equator = constants.equator
-    # Need to shift the origin.
-    shift = equator / 2
-    # What is the resolution of a pixel at the equator in meters, for our zoom level?
-    resolution = (equator / tile_size) / (2 ** zoom)
-    # Convert the lat and long to map xy coords.
-    # Longitude is constant, but latitude varies based on distance from the equator.
-    map_x = (latlon.lon * shift) / 180.0
-    ex = math.degrees(math.log(math.tan((90 + latlon.lat) * math.pi / 360.0)))
-    map_y = (ex * shift) / 180.0
-    # Convert from xy to pixel coordinates.
-    pixel_x = (shift + map_x) / resolution
-    pixel_y = (shift + map_y) / resolution
+    pixel_x = tile_size * (0.5 + latlon.lon / 360)
+    pixel_x *= 2 ** zoom
+    ex = math.sin((latlon.lat * math.pi) / 180)
+    pixel_y = tile_size * (0.5 - math.log((1 + ex) / (1 - ex)) / (4 * math.pi))
+    pixel_y *= 2 ** zoom
+
     return Pixel(round(pixel_x), round(pixel_y))
 
 
@@ -337,28 +374,19 @@ def pixels_to_lat_lon(
     """
     Calculates the pixel(x, y) -> (lat, lon) mapping.
     Args:
-        pixel_x (int): pixel x coordinate.
-        pixel_y (int): pixel y coordinate.
+        pix (Pixel): pixel x and y coordinates.
         zoom (int): zoom level of the tile.
         tile_size (int, optional): Size of the tile. Defaults to 256.
         truncate (bool, optional): Truncate the output to the actual level of precision the caltulation has. Defaults to True.
     Returns:
-        (float, float): (lat, lon) coordinate pair.
+        (LatLon): (lat, lon) coordinate pair.
     """
-    equator = constants.equator
-    # Need to shift the origin.
-    shift = equator / 2
-    # What is the resolution of a pixel at the equator in meters, for our zoom level?
-    print("eq", equator, "ts", tile_size, "z", zoom)
-    resolution = (equator / tile_size) / (2 ** zoom)
-    # Convert from pixels to the mercator projection coords.
-    map_x = pix.x * resolution - shift
-    map_y = pix.y * resolution - shift
-    # And the convert from the map xy to lat and lon.
-    # Longitude is constant, but latitude varies based on distance from the equator.
-    lon = 180 * (map_x / shift)
-    ex = math.radians(180 * (map_y / shift))
-    lat = math.degrees(2 * math.atan(math.exp(ex)) - math.pi / 2)
+    print("pix", pix)
+    res = tile_size * 2 ** zoom
+    lon = (360 * pix.x) / res - 180
+    ex = -(pix.y / (res / (2 * math.pi))) + math.pi
+    lat = math.degrees((math.atan(math.e ** ex) - (math.pi / 4)) * 2)
+
     latlon = LatLon(lat, lon)
     if truncate:
         return truncate_latlon_precision(latlon, zoom)
@@ -370,10 +398,12 @@ def bounding_pixels_to_lat_lon(
 ) -> LatLonBBox:
     """
     Convenience function for pixels_to_lat_lon() that takes a pixel bbox instead of just two pixels.
+    Note the conversion between origins.
     """
-    tl = pixels_to_lat_lon(pixels_bbox.tl, zoom, tile_size, truncate)
-    br = pixels_to_lat_lon(pixels_bbox.br, zoom, tile_size, truncate)
-    return LatLonBBox(*tl, *br)
+    print("bp2ll:", pixels_bbox)
+    top, left = pixels_to_lat_lon(pixels_bbox.tl, zoom, tile_size, truncate)
+    bottom, right = pixels_to_lat_lon(pixels_bbox.br, zoom, tile_size, truncate)
+    return LatLonBBox(left=left, top=top, right=right, bottom=bottom)
 
 
 def bounding_lat_lon_to_pixels(

@@ -250,12 +250,51 @@ class TestImage:
         sp = imager.quad_split(res)
         assert all([self.compare_images(*a) for a in zip(sp, imgs)])
 
-    def test_paste_halves(self):
-        left = self.open_image("test_paste_halves_left.png")
-        right = self.open_image("test_paste_halves_right.png")
-        result = self.open_image("result_paste_halves.png")
-        res = imager.paste_halves(left, right)
-        assert self.compare_images(result, res)
+    @pytest.mark.parametrize(
+        "left_image, right_image, result, error",
+        [
+            (
+                "test_paste_halves_left.png",
+                "test_paste_halves_right.png",
+                "result_paste_halves.png",
+                None,
+            ),
+            (
+                "test_paste_halves_left.png",
+                "test_paste_halves_right-2x.png",
+                "result_paste_halves-2x.png",
+                None,
+            ),
+            (
+                "test_paste_halves_left.png",
+                "test_paste_halves_right.png",
+                "",
+                imager.MixedImageModesError,
+            ),
+            (
+                "test_paste_halves_left.png",
+                "test_paste_halves_right.png",
+                "",
+                imager.CompositingError,
+            ),
+        ],
+    )
+    def test_paste_halves(self, left_image, right_image, result, error):
+        left = self.open_image(left_image)
+        right = self.open_image(right_image)
+        if error is imager.MixedImageModesError:
+            left.mode = "RGBA"
+            right.mode = "RGB"
+        if error is imager.CompositingError:
+            left = left.crop((0, 0, left.size[0], left.size[1] // 2))
+        if not error:
+            result = self.open_image(result)
+            res = imager.paste_halves(left, right)
+            res.save("imph.png")
+            assert self.compare_images(result, res)
+        else:
+            with pytest.raises(error):
+                _ = imager.paste_halves(left, right)
 
     @pytest.mark.parametrize(
         "image_fn, crop_size, expected_bounds",
@@ -279,12 +318,5 @@ class TestImage:
     )
     def test_find_crop_bounds(self, image_fn, crop_size, expected_bounds):
         image = self.open_image(image_fn)
-        (
-            swapped_image,
-            crop_area,
-            center,
-            bbox,
-            extra_tiles,
-            fill_crop,
-        ) = imager.find_crop_bounds(image, crop_size)
-        assert crop_area == expected_bounds
+        fitted_crop, center_crop = imager.find_crop_bounds(image, crop_size)
+        assert fitted_crop == expected_bounds

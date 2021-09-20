@@ -18,6 +18,7 @@ from static_maps.geo import (
 )
 import static_maps.geo as geo
 from static_maps.imager import Pixel, PixBbox
+import static_maps.constants as constants
 
 
 class TestBboxAlias:
@@ -467,27 +468,27 @@ class TestLatLonBbox:
             (
                 LatLonBBox(west=-180.0, north=85.0, east=180.0, south=-85.0),
                 0,
-                PixBbox(left=0, top=256, right=256, bottom=0),
+                PixBbox(left=0, top=0, right=256, bottom=256),
             ),
             (
                 LatLonBBox(-54.75, -68.25, -54.85, -68.35),
                 4,
-                PixBbox(1425, 973, 1424, 970),
+                PixBbox(1425, 3123, 1424, 3126),
             ),
             (
                 LatLonBBox(-54.75, 68.25, 54.85, -68.35),
                 5,
-                PixBbox(2850, 6247, 5344, 1939),
+                PixBbox(2850, 1945, 5344, 6253),
             ),
             (
                 LatLonBBox(20.0, 40.0, 40.0, -40.0),
                 0,
-                PixBbox(142, 159, 156, 97),
+                PixBbox(142, 97, 156, 159),
             ),
             (
                 LatLonBBox(-54.75, -68.25, -54.85, -68.35),
                 15,
-                PixBbox(2918537, 1991876, 2916206, 1985574),
+                PixBbox(2918537, 6396732, 2916206, 6403034),
             ),
         ],
     )
@@ -498,7 +499,7 @@ class TestLatLonBbox:
         # coordinate origin is lower left corner.
         # make sure the results are in this order.
         assert res.left >= res.left
-        assert res.top >= res.bottom
+        assert res.top <= res.bottom
 
     @pytest.mark.parametrize(
         "latlon, result",
@@ -548,6 +549,54 @@ class TestLatLonBbox:
 
 class TestLatLon:
     @pytest.mark.parametrize(
+        "latlon_in",
+        [
+            (49, -123),
+        ],
+    )
+    def test_creation(self, latlon_in):
+        res = LatLon(*latlon_in)
+        assert res.lat == latlon_in[0]
+        assert res.lon == latlon_in[1]
+        # Make sure it's iterable.
+        lat, lon = res
+        assert (lat, lon) == latlon_in
+
+    @pytest.mark.parametrize(
+        "latlon_in, radius_km, bbox",
+        [
+            (
+                (49, -123),
+                20,
+                LatLonBBox(
+                    left=-123.2728,
+                    top=49.1797,
+                    right=-122.7251,
+                    bottom=48.8203,
+                ),
+            ),
+            (
+                # These results look screwy because they are. This close to the poles, things get weird.
+                (90, 180),
+                20,
+                LatLonBBox(
+                    left=177.9923,
+                    top=constants.max_latitude,
+                    right=182.1585,
+                    bottom=84.8715,
+                ),
+            ),
+        ],
+    )
+    def test_radius(self, latlon_in, radius_km, bbox):
+        res = LatLon(*latlon_in)
+        radius_bbox = res.get_radius(radius_km)
+        for a, b in zip(radius_bbox, bbox):
+            assert pytest.approx(a) == b
+
+
+class TestLatLonBbox:
+    @pytest.mark.parametrize(
         "latlon_in, latlon_out, zoom",
         [
             ((28.304380682962783, -15.468750000000012), (28.3, -15.5), 0),
@@ -569,14 +618,15 @@ class TestLatLon:
     @pytest.mark.parametrize(
         "pixels, latlon, zoom, tile_size",
         [
-            ((245, 153), (33.1, 164.5), 0, 256),
-            ((256, 173), (53.3, 180.0), 0, 256),
-            ((1, 149), (28.3, -178.6), 0, 256),
-            ((4, 164), (45.1, -174.4), 0, 256),
-            ((0, 0), (-85.1, -180.0), 0, 256),
+            ((245, 153), (-33.1, 164.5), 0, 256),
+            ((256, 173), (-53.3, 180.0), 0, 256),
+            ((1, 149), (-28.3, -178.6), 0, 256),
+            ((4, 164), (-45.1, -174.4), 0, 256),
+            ((0, 0), (85.1, -180.0), 0, 256),
             ((128, 128), (0.0, 0.0), 0, 256),
-            ((256, 256), (85.1, 180.0), 0, 256),
-            ((987, 808), (71.5, 167.0), 0, 1024),
+            ((256, 256), (-85.1, 180.0), 0, 256),
+            ((987, 808), (-71.5, 167.0), 0, 1024),
+            ((525, 761), (41.9, -87.7), 3, 256),
         ],
     )
     def test_pixels_to_lat_lon(self, pixels, latlon, zoom, tile_size, roundtrip):
@@ -592,7 +642,7 @@ class TestLatLon:
     @pytest.mark.parametrize(
         "latlon, pixels, zoom",
         [
-            (LatLon(lat=6.7, lon=109.2), Pixel(206, 133), 0),
+            (LatLon(lat=6.7, lon=109.2), Pixel(206, 123), 0),
         ],
     )
     def test_lat_lon_to_pixels(self, latlon, zoom, pixels):
@@ -627,13 +677,18 @@ class TestLatLon:
     @pytest.mark.parametrize(
         "pixels_bbox, zoom, tile_size, truncate, expected",
         [
-            ((0, 0, 255, 255), 0, 256, True, (-85.1, -180.0, 84.9, 178.6)),
+            (
+                PixBbox(0, 0, 255, 255),
+                0,
+                256,
+                True,
+                LatLonBBox(bottom=-84.9, left=-180.0, top=85.1, right=178.6),
+            ),
+            # (PixBbox(1, 149, 256, 173), 0, 256, True, LatLonBBox(0, 0, 0, 0)),
         ],
     )
     def test_pixel_bbox_to_latlon_bbox(
         self, pixels_bbox, zoom, tile_size, truncate, expected
     ):
-        pbb = PixBbox(*pixels_bbox)
-        ex = LatLonBBox(*expected)
-        res = geo.bounding_pixels_to_lat_lon(pbb, zoom, tile_size, truncate)
-        assert res == ex
+        res = geo.bounding_pixels_to_lat_lon(pixels_bbox, zoom, tile_size, truncate)
+        assert res == expected

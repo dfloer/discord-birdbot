@@ -312,6 +312,10 @@ class NotRGBAError(Exception):
     pass
 
 
+class MixedImageModesError(Exception):
+    pass
+
+
 def composite_mxn(
     images: Dict[Tuple[int, int], "Image"], strict: bool = False
 ) -> "Image":
@@ -455,17 +459,27 @@ def debug_draw_pix_bbox(
 
 def paste_halves(a: "Image", b: "Image") -> "Image":
     """
-    Pastes image B to the right of image A
+    Pastes image B to the right of image A. Image A and B must be the same height. and share modes.
+    args:
+        a (Image): right hand image.
+        b (Image): left hand image.
+    Raises:
+        MixedImageModesError: If the two images have different modes.
+        CompositingError: If the two images have different heights.
+    Returns:
+        Image: Two havles composited together.
     """
     mode = a.mode
-    assert a.mode == b.mode
+    if a.mode != b.mode:
+        raise MixedImageModesError
     print("ph size:", a.size, b.size)
+    if a.size[1] != b.size[1]:
+        raise CompositingError(
+            f"Images need to be the same height. Got a={a.size[1]}, b={b.size[1]}"
+        )
     assert a.size[1] == b.size[1]
     w, h = a.size
-    output_size = (w * 2, h)
-    # if mode == "RGB":
-    #     new_image = Image.new("RGB", output_size)
-    # else:
+    output_size = (w + b.size[0], h)
     new_image = Image.new(mode, output_size)
     new_image.paste(a, (0, 0))
     new_image.paste(b, (w, 0))

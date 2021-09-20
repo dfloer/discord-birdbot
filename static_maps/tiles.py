@@ -512,7 +512,7 @@ def empty_tilearray_from_ids(tile_ids: List[Union[TileID, Tuple[int]]]) -> TileA
 
 
 def bounding_box_to_tiles(
-    bbox: geo.LatLonBBox, start_zoom: int = 0, size: int = 512
+    bbox: geo.LatLonBBox, start_zoom: int = 0, size: int = 512, alt_bbox: bool = False
 ) -> Tuple["TileArray"]:
     """
     Takes a bounding box and finds the TileArray that best covers that bounding box.
@@ -537,9 +537,12 @@ def bounding_box_to_tiles(
     bad_bbox = False
     # Is this likely to be an incorrect bounding box that forgets that the map is actually a cynlinder?
     # This is really just a heuristic test for an incorrect bounding box, because it's hard to deal with bad data.
-    if -180 < w < -178 or 178 < e < 180:
+    if -180 < w < -178 and 178 < e < 180:
         print("Probable incorrect bounding box due to antimeridian crossing.")
-        bad_bbox = True
+        if alt_bbox:
+            print("alt bounding box override.")
+        else:
+            bad_bbox = True
 
     if (w > e or abs(w) > 180 or abs(e) > 180) and not bad_bbox:
         print("Bbox crosses anti-meridian.")
