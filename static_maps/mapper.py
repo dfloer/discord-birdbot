@@ -99,7 +99,7 @@ class BaseMap:
 
         if zoom > 0 or swapped_bbox.area >= bbox.area:
             res = bounding_pixels_to_lat_lon(bbox, zoom, tile_size)
-            return [LatLonBBox(*res)]
+            return [None, None, LatLonBBox(*res)]
         else:
             left_half, right_half = split_bbox_half(swapped_bbox, tile_size)
             print("fiblh", left_half)
@@ -427,9 +427,9 @@ class eBirdMap(BaseMap):
         return Tile(tile_id, img=img, name=f"ebird-{rsid}")
 
     def make_map(
-        self, species_code: str, mapbox: MapBox, map_size: int = 512
+        self, species_code: str, mapbox: MapBox, map_size: int = 512, start_zoom: int = 0
     ) -> "Image":
-        range_tiles = self.get_tiles(species_code, 0, map_size)
+        range_tiles = self.get_tiles(species_code, start_zoom, map_size)
         mapbox_tiles = [mapbox.get_tiles(a.copy(), high_res=False) for a in range_tiles]
         if len(range_tiles) == 2:
             left = range_tiles[0]._composite_all()

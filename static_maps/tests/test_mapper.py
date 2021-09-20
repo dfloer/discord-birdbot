@@ -367,6 +367,15 @@ class TestEbird:
                 "",
                 None,
             ),
+            (
+                "redcro9",
+                LatLonBBox(
+                    -115.321299536305,
+                    43.2077783892461,
+                    -113.524668968066,
+                    41.9867319031071
+                )
+            )
         ],
     )
     def test_get_bbox(self, species_code, expected_bbox):
@@ -432,6 +441,7 @@ class TestEbird:
             ("grycat", 512),
             ("kinpen1", 512),
             ("carchi", 512),
+            ("arcter", 512),
         ],
     )
     def test_map_final(self, species_code, size):
