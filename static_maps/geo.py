@@ -7,9 +7,53 @@ import static_maps.constants as constants
 
 Point = namedtuple("Point", ("x", "y"))
 Pixel = namedtuple("Pixel", ("x", "y"))
-LatLon = namedtuple("LatLon", ("lat", "lon"))
 
 BBoxT = Union["BBoxBase", "DynamicBBox", "LatLonBBox", "PixBbox"]
+
+
+@dataclass
+class LatLon:
+    lat: Union[int, float]
+    lon: Union[int, float]
+
+    def get_radius(self, d: int) -> "LatLonBBox":
+        """
+        Gets a bounding box for a circle at a radius from the current point.
+        Args:
+            d (int): distance (radius) in km.
+        Returns:
+            LatLonBBox: Bounding box centered on this point's coordinates.
+        """
+        lat_r = math.radians(
+            min(max(self.lat, -constants.max_latitude), constants.max_latitude)
+        )
+        lon_r = math.radians(self.lon)
+        r = (d * 1000) / constants.earth_radius
+        north = math.asin(
+            math.sin(lat_r) * math.cos(r) + math.cos(lat_r) * math.sin(r) * math.cos(0)
+        )
+        south = math.asin(
+            math.sin(lat_r) * math.cos(r)
+            + math.cos(lat_r) * math.sin(r) * math.cos(math.pi)
+        )
+
+        west = lon_r + math.atan2(
+            math.sin(3 * math.pi / 2) * math.sin(r) * math.cos(north),
+            math.cos(r) - math.sin(lat_r) * math.sin(lat_r),
+        )
+        east = lon_r + math.atan2(
+            math.sin(math.pi / 2) * math.sin(r) * math.cos(south),
+            math.cos(r) - math.sin(lat_r) * math.sin(lat_r),
+        )
+        north = min(math.degrees(north), constants.max_latitude)
+        south = max(math.degrees(south), -constants.max_latitude)
+        east = math.degrees(east)
+        west = math.degrees(west)
+
+        return LatLonBBox(left=west, top=north, right=east, bottom=south)
+
+    def __iter__(self):
+        return iter((self.lat, self.lon))
 
 
 @dataclass

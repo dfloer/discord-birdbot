@@ -18,6 +18,7 @@ from static_maps.geo import (
 )
 import static_maps.geo as geo
 from static_maps.imager import Pixel, PixBbox
+import static_maps.constants as constants
 
 
 class TestBboxAlias:
@@ -547,6 +548,54 @@ class TestLatLonBbox:
 
 
 class TestLatLon:
+    @pytest.mark.parametrize(
+        "latlon_in",
+        [
+            (49, -123),
+        ],
+    )
+    def test_creation(self, latlon_in):
+        res = LatLon(*latlon_in)
+        assert res.lat == latlon_in[0]
+        assert res.lon == latlon_in[1]
+        # Make sure it's iterable.
+        lat, lon = res
+        assert (lat, lon) == latlon_in
+
+    @pytest.mark.parametrize(
+        "latlon_in, radius_km, bbox",
+        [
+            (
+                (49, -123),
+                20,
+                LatLonBBox(
+                    left=-123.2728,
+                    top=49.1797,
+                    right=-122.7251,
+                    bottom=48.8203,
+                ),
+            ),
+            (
+                # These results look screwy because they are. This close to the poles, things get weird.
+                (90, 180),
+                20,
+                LatLonBBox(
+                    left=177.9923,
+                    top=constants.max_latitude,
+                    right=182.1585,
+                    bottom=84.8715,
+                ),
+            ),
+        ],
+    )
+    def test_radius(self, latlon_in, radius_km, bbox):
+        res = LatLon(*latlon_in)
+        radius_bbox = res.get_radius(radius_km)
+        for a, b in zip(radius_bbox, bbox):
+            assert pytest.approx(a) == b
+
+
+class TestLatLonBbox:
     @pytest.mark.parametrize(
         "latlon_in, latlon_out, zoom",
         [
