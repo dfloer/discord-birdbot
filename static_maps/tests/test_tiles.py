@@ -477,7 +477,7 @@ class TestFindTiles:
                 0,
                 1,
                 "Emperor Pengiun - Antartica.",
-                True,
+                False,  # This technically doesn't quite cross the AM, I guess.
             ),
             (
                 LatLonBBox(

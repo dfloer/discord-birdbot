@@ -609,7 +609,7 @@ class TestLatLonBbox:
     def test_truncate_precision(self, latlon_in, latlon_out, zoom):
         latlon_in = LatLon(*latlon_in)
         res = geo.truncate_latlon_precision(latlon_in, zoom)
-        assert res == latlon_out
+        assert res == LatLon(*latlon_out)
 
     @pytest.mark.parametrize(
         "roundtrip",
