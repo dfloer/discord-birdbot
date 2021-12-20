@@ -3,7 +3,7 @@ from typing import Any
 from pathlib import Path
 
 import pytest
-from static_maps.geo import LatLonBBox
+from static_maps.geo import LatLonBBox, LatLon
 from static_maps.mapper import (
     GBIF,
     BaseMap,
@@ -26,8 +26,8 @@ class TestMapBox:
     @pytest.mark.parametrize(
         "input_string, output",
         [
-            ("Vancouver, Canada", (-123.116838, 49.279862)),
-            ("Vondelpark", (4.877867, 52.362441)),
+            ("Vancouver, Canada", LatLon(-123.116838, 49.279862)),
+            ("Vondelpark", LatLon(4.877867, 52.362441)),
         ],
     )
     def test_geocode(self, input_string, output):
