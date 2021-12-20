@@ -609,7 +609,7 @@ class TestLatLonBbox:
     def test_truncate_precision(self, latlon_in, latlon_out, zoom):
         latlon_in = LatLon(*latlon_in)
         res = geo.truncate_latlon_precision(latlon_in, zoom)
-        assert res == latlon_out
+        assert res == LatLon(*latlon_out)
 
     @pytest.mark.parametrize(
         "roundtrip",
@@ -692,3 +692,24 @@ class TestLatLonBbox:
     ):
         res = geo.bounding_pixels_to_lat_lon(pixels_bbox, zoom, tile_size, truncate)
         assert res == expected
+
+    @pytest.mark.parametrize(
+        "latlon_tl, latlon_br",
+        [
+            (LatLon(lat=45, lon=90), LatLon(lat=-45, lon=-90)),
+            (LatLon(lat=90, lon=180), LatLon(lat=-90, lon=-180)),
+            (LatLon(lat=90, lon=180), LatLon(lat=0, lon=0)),
+            (LatLon(lat=0, lon=0), LatLon(lat=-90, lon=-180)),
+        ],
+    )
+    def test_bbox_lat_clamp(self, latlon_tl, latlon_br):
+        test_bbox = LatLonBBox(
+            left=latlon_tl.lon,
+            top=latlon_tl.lat,
+            right=latlon_br.lon,
+            bottom=latlon_br.lat,
+        )
+        test_bbox.clamp_lat()
+        print(test_bbox)
+        assert test_bbox.top <= constants.max_latitude
+        assert test_bbox.bottom >= -constants.max_latitude

@@ -3,7 +3,7 @@ from typing import Any
 from pathlib import Path
 
 import pytest
-from static_maps.geo import LatLonBBox
+from static_maps.geo import LatLonBBox, LatLon
 from static_maps.mapper import (
     GBIF,
     BaseMap,
@@ -26,8 +26,8 @@ class TestMapBox:
     @pytest.mark.parametrize(
         "input_string, output",
         [
-            ("Vancouver, Canada", (-123.116838, 49.279862)),
-            ("Vondelpark", (4.877867, 52.362441)),
+            ("Vancouver, Canada", LatLon(-123.116838, 49.279862)),
+            ("Vondelpark", LatLon(4.877867, 52.362441)),
         ],
     )
     def test_geocode(self, input_string, output):
@@ -319,8 +319,12 @@ class TestBaseMap:
                 "test_bbox_normal.png",
                 0,
                 256,
-                LatLonBBox(bottom=13.9, left=-129.4, top=52.5, right=-88.6),
                 None,
+                (
+                    None,
+                    None,
+                    LatLonBBox(bottom=13.9, left=-129.4, top=52.5, right=-88.6),
+                ),
             ),
         ],
     )
@@ -328,9 +332,8 @@ class TestBaseMap:
         with open(self.test_img_path / Path(test_img_fn), "rb") as f:
             test_img = Image.open(f).copy()
         res = self.base_map.find_image_bbox(test_img, zoom)
-        print("res:", len(res), res)
         if len(res) == 1:
-            assert res[0] == bbox
+            assert False  # This should never happen!
         else:
             assert res[0] == bbox_parts[0]
             assert res[1] == bbox_parts[1]
@@ -443,6 +446,7 @@ class TestEbird:
             ("carchi", 512, False),
             ("arcter", 512, False),
             ("dodo1", 512, True),
+            ("pifgoo", 512, False),
         ],
     )
     def test_map_final(self, species_code, size, no_data):

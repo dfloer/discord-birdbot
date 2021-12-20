@@ -257,6 +257,7 @@ class LatLonBBox(DynamicBBox):
             del kwargs["srs"]
         super()._set("aliases", latlon_aliases)
         super().__init__(*args, **kwargs)
+        self.clamp_lat()
 
     @property
     def all_aliases(self):
@@ -289,13 +290,13 @@ class LatLonBBox(DynamicBBox):
     def __ne__(self, cmp: Any) -> bool:
         return not self.__eq__(cmp)
 
-    def contains(self, c: "LatLonBBox") -> bool:
+    def contains(self, c: "LatLonBBox", d: int = 5) -> bool:
         """True if self contains the candidate bbox completely."""
         return (
-            self.left <= c.left
-            and self.right >= c.right
-            and self.top >= c.top
-            and self.bottom <= c.bottom
+            round(self.left, d) <= round(c.left, d)
+            and round(self.right, d) >= round(c.right, d)
+            and round(self.top, d) >= round(c.top, d)
+            and round(self.bottom, d) <= round(c.bottom, d)
         )
 
     def am_split(self) -> Union[Tuple["LatLonBBox"], None]:
@@ -317,6 +318,11 @@ class LatLonBBox(DynamicBBox):
             return west_part, east_part
         else:
             return None
+
+    def clamp_lat(self) -> None:
+        """Clamps the latitude to be less than max_latitude."""
+        self.north = min(self.north, constants.max_latitude)
+        self.south = max(self.south, -constants.max_latitude)
 
 
 @dataclass(eq=False)
