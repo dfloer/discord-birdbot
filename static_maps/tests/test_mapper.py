@@ -443,6 +443,7 @@ class TestEbird:
             ("carchi", 512, False),
             ("arcter", 512, False),
             ("dodo1", 512, True),
+            ("pifgoo", 512, False),
         ],
     )
     def test_map_final(self, species_code, size, no_data):
