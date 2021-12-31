@@ -2,8 +2,11 @@ import pytest
 
 import ebird_taxonomy_parse as etp
 import banding_code_parse as bcp
+from pathlib import Path
 
-fn = "eBird_Taxonomy_v2021.csv"
+test_path = Path("input_parsing")
+
+fn = test_path / Path("eBird_Taxonomy_v2021.csv")
 csv_common, csv_scientific, csv_code, csv_short, csv_band = etp.taxonomy_parse(fn)
 api_common, api_scientific, api_code, api_short, api_band = etp.taxonomy_parse("")
 
@@ -13,7 +16,7 @@ csv_scientific_name_mappings = {k: v.scientific_code for k, v in csv_scientific.
 api_common_name_mappings = {k: v.short_codes for k, v in api_common.items()}
 api_scientific_name_mappings = {k: v.scientific_code for k, v in api_scientific.items()}
 
-csv_filename = "IBP-AOS-LIST21.csv"
+csv_filename = test_path / Path("IBP-AOS-LIST21.csv")
 banding_mapping = bcp.common_name_to_banding(csv_filename)
 downloader_banding_mapping = bcp.common_name_to_banding("")
 banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
