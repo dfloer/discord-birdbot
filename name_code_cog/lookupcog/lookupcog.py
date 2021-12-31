@@ -27,13 +27,15 @@ class LookupCog(commands.Cog):
 
     def find_name(self, arg, backend):
         res = "No mapping found."
-        if len(arg) != 4 and arg not in ["Emu", "Kea", "Tui", "Mao", "Ou"]:
+        if len(arg) <= 4 and arg not in ["Emu", "Kea", "Tui", "Mao", "Ou"]:
             res = f"{arg} is not valid (too short)."
+        elif len(arg) > 4:
+            res = f"{arg} is not valid (too long)."
         try:
             r = backend.code_to_names(arg)
             print("r:", r)
             if r["names"]:
-                res = f"{arg} -> {', '.join(r['names'])}"
+                res = f"{arg.upper()} -> {', '.join(r['names'])}"
         except Exception:
             res = "Error: lookup failed."
         logger.info(f"lookupcog: find_name: arg: {arg}, backend: {backend}, result: {res}")
@@ -101,10 +103,11 @@ class LookupCog(commands.Cog):
             colour = 0x007F7F
         elif media_type == "Video":
             # ML currently says file extensions can be MOV, MP4 and M4V.
+            # This has not been tested with MOV of M4V files, but it should work.
             ext = [x for x in ('mov', "mp4", "m4v") if x in media_url.lower()]
             if ext:
-                video_url = f"{base_url}{res.asset_id}.{ext[0]}"
-                print(f"Video url: {video_url}.")
+                video_url = f"{media_url}/1280.{ext[0]}"
+                print(f"Video url: {video_url}")
             colour = 0x7F7F00
         else:
             media_extra = f"{media_type} not supported yet."
