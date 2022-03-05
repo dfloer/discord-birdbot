@@ -1,10 +1,10 @@
 import pytest
 from ebird_lookup import (
-    eBirdTaxonomy,
     TypeSenseSearch,
     MeilisearchSearch,
     PopulateTaxonomyError,
 )
+from ebird_stuff.ebird.datamodel import eBirdTaxonomy
 import json
 from pathlib import Path
 

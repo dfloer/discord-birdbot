@@ -7,7 +7,7 @@ from redbot.core import commands
 sys.path.append(os.getcwd())
 
 from ebird_lookup import ebird_lookup as ebl
-from ebird_stuff import ml_api as mlp
+from ebird_stuff.ml import api as mlp
 from ebird_stuff import transcode
 
 from loguru import logger
