@@ -12,7 +12,13 @@ from redbot.core import commands
 sys.path.append(os.getcwd())
 
 from ebird_lookup import ebird_lookup as ebl
-from static_maps.mapper import GBIF, MapBox, eBirdMap, generate_gbif_mapbox_range, get_token
+from static_maps.mapper import (
+    GBIF,
+    MapBox,
+    eBirdMap,
+    generate_gbif_mapbox_range,
+    get_token,
+)
 
 
 class GeoCog(commands.Cog):
@@ -116,12 +122,16 @@ class GeoCog(commands.Cog):
                     end = datetime.now()
                     desc = "Source: eBird, Mapbox."
                     desc += f"\nDebug: generated in: {(end - start).seconds}s. Search: {backend_name}."
-                    embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F007F)
+                    embed = discord.Embed(
+                        title=title, url=ebird_url, description=desc, color=0x7F007F
+                    )
                     file = discord.File(img, filename=f"{species_code}.png")
                 else:
                     desc = "**No data on eBird**.\nSource: eBird, Mapbox."
                     desc += f"\nDebug: no data, Search: {backend_name}."
-                    embed = discord.Embed(title=title, url=ebird_url, description=desc, color=0x7F0000)
+                    embed = discord.Embed(
+                        title=title, url=ebird_url, description=desc, color=0x7F0000
+                    )
                     file = discord.File(img, filename=f"{species_code}.png")
 
             except Exception:
@@ -137,8 +147,8 @@ class GeoCog(commands.Cog):
             await ctx.send(embed=embed)
         else:
             embed = discord.Embed(
-                    title="Error:",
-                    description="Range map creation failed.",
-                    color=0xFF0000,
-                )
+                title="Error:",
+                description="Range map creation failed.",
+                color=0xFF0000,
+            )
             await ctx.send(embed=embed)

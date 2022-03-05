@@ -102,3 +102,23 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+
+#Testing stuff
+geocog-*.png
+Hgbifmap*.png
+Sgbifmap*.png
+*uncropped-*.png
+test_*.png
+mapbox_*.png
+swapped*.png
+ebird-R*.png
+fill_crop*.png
+final-*.png
+fit*.png
+gbif+mapbox*
+center*.png
+crop*.png
+am*.png
+api_cache/*
+creds.txt
