@@ -7,5 +7,7 @@ setup_logger()
 # Why not run logger.disable("") in pytest? This just disables writing to the log file, it doesn't disable file logging, which causes blank log files, which is bad.
 # Monkeypatching also didn't work, because you can't monkeypatch an __init__.py before you've loaded it.
 # So this was the only way to check if this is being run through pytest. Yep...
-if not any([True for x, y in os.environ.items() if "pytest" in x.lower() or "pytest" in y.lower()]):
+if not any(
+    [True for x, y in os.environ.items() if "pytest" not in (x.lower(), y.lower())]
+):
     add_file_logger("logs/lookupcog-{time}.log")

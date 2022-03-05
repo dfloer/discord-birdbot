@@ -52,8 +52,8 @@ class AudioTranscoder:
     )
 
     # def __post__init__(self):
-        # self.logger = self.logger()
-        # print(self.logger)
+    # self.logger = self.logger()
+    # print(self.logger)
 
     def input_meta(self, input_data: BytesIO):
         """
@@ -90,9 +90,7 @@ class AudioTranscoder:
         out_size = len(audio_out.getvalue())
         transcode_status = True if in_size != out_size else False
 
-        logger.log(
-            "STATS", f"audio_transcode: elapsed: {elapsed}s, size: {out_size}B."
-        )
+        logger.log("STATS", f"audio_transcode: elapsed: {elapsed}s, size: {out_size}B.")
         return OutputMeta(audio_out, elapsed, out_size, transcode_status)
 
     def transcode_audio(

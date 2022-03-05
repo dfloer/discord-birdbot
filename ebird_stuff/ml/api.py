@@ -7,7 +7,7 @@ from typing import Dict, List, NamedTuple, TypedDict, Union, Optional
 # import requests
 from requests.utils import urlparse as req_urlparse
 
-from ebird_stuff.ml_session import get, head
+from ebird_stuff.ml.session import get, head
 
 LatLonT = NamedTuple  # [float, float]
 LatLon: LatLonT = namedtuple("LatLon", "lat, lon")
