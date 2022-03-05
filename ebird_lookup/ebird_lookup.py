@@ -7,8 +7,6 @@ from pathlib import Path
 from ebird_stuff.ebird.datamodel import eBirdTaxonomy
 
 
-
-
 @dataclass
 class TypeSenseSearch:
     api_key: str

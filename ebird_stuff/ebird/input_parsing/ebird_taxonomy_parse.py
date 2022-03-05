@@ -165,6 +165,7 @@ def taxonomy_parse(csv_path=""):
                 short_map[x] += [taxon]
     return common_map, scientific_map, code_map, short_map, band_map
 
+
 def normalize_to_ascii(s):
     """
     Normalizes a unicode string to the ascii representation of it.

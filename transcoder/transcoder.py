@@ -1,17 +1,13 @@
-import sys
 from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
-from typing import NamedTuple
 from copy import copy
 from typing import Tuple
 from bisect import bisect
 
 from loguru import logger
 from pydub import AudioSegment
-from pydub import utils as pydub_utils
-
 
 # def setup_logger():
 #     logger = loguru.logger
@@ -55,7 +51,7 @@ class AudioTranscoder:
     # self.logger = self.logger()
     # print(self.logger)
 
-    def input_meta(self, input_data: BytesIO):
+    def input_meta(self, input_data: BytesIO) -> InputMeta:
         """
         Gets the metadata on the input file.
         Pydub doesn't always return sane values, so this may be problematic to use.
@@ -71,7 +67,7 @@ class AudioTranscoder:
         self,
         input_data: BytesIO,
         max_size: int = 7600000,
-    ) -> NamedTuple:
+    ) -> OutputMeta:
         """
         runs transcode_audio, but returns data with metadata.
         Args:

@@ -1,10 +1,13 @@
-import pytest
-
-import ebird_taxonomy_parse as etp
-import banding_code_parse as bcp
+import os
 from pathlib import Path
 
-test_path = Path("input_parsing")
+import pytest
+from ebird_stuff.ebird.input_parsing import banding_code_parse as bcp
+from ebird_stuff.ebird.input_parsing import ebird_taxonomy_parse as etp
+
+# Find the path of the script. Inputs should be in ./test-files/ from it
+test_path = Path(__file__).parent / Path("test-files")
+# test_path = Path(cwd).joinpath(*[x for x in rest if x not in cwd])
 
 fn = test_path / Path("eBird_Taxonomy_v2021.csv")
 csv_common, csv_scientific, csv_code, csv_short, csv_band = etp.taxonomy_parse(fn)
