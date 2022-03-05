@@ -17,7 +17,7 @@ from static_maps.tiles import (
     empty_tilearray_from_ids,
     bounding_box_to_tiles,
 )
-from static_maps.geo import LatLonBBox, PixBbox
+from static_maps.geo import LatLonBBox, PixBbox, LatLon
 
 import PIL.Image as Img
 
@@ -575,6 +575,18 @@ class TestFindTiles:
             assert res[1].zoom == end_zoom
             assert not am_invalid
         # assert False
+
+    @pytest.mark.parametrize(
+        "center, radius_km, expected_tids",
+        [
+            (LatLon(49.098, -123.179), 50, []),
+        ],
+    )
+    def test_bbox_from_center_area(self, center, radius_km, expected_tids):
+        bbox = center.get_radius(radius_km)
+        res = bounding_box_to_tiles(bbox, 0)
+        print(f"res ({len(res)}):\n", res)
+        assert res == expected_tids
 
     # def test_alternative_bbox(self, bad_bbox, bbox_guess):
     #     pass

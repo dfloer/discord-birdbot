@@ -93,7 +93,7 @@ class BaseMap:
             test_img = test_img.img
         tile_size = test_img.size[0]
         bbox = test_img.getbbox()
-        print("bbox:", bbox)
+        print("fibbox:", bbox)
         swapped_image = swap_left_right(test_img)
         swapped_bbox = swapped_image.getbbox()
 
@@ -483,7 +483,12 @@ class eBirdMap(BaseMap):
         mapbox: MapBox,
         map_size: int = 512,
         start_zoom: int = 0,
+        center: LatLon = None,
+        area: int = None,
     ) -> "Image":
+        print(f"center: {center}, area: {area}")
+        if center and area:
+            pass
         range_tiles = self.get_tiles(species_code, start_zoom, map_size)
         if not range_tiles:
             img = mapbox.get_tile(TileID(0, 0, 0), high_res=True).img

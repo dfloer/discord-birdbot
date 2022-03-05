@@ -545,7 +545,7 @@ def bounding_box_to_tiles(
             bad_bbox = True
 
     if (w > e or abs(w) > 180 or abs(e) > 180) and not bad_bbox:
-        print("Bbox crosses anti-meridian.")
+        print("bbtt: Bbox crosses anti-meridian.")
         bbox_west, bbox_east = bbox.am_split()
         tile_west, alt_west, zoom_west = _bounding_box_candidates(
             bbox_west, zoom_level, size
@@ -553,19 +553,19 @@ def bounding_box_to_tiles(
         tile_east, alt_east, zoom_east = _bounding_box_candidates(
             bbox_east, zoom_level, size
         )
-        print("West:")
+        print("bbtt West:")
         pprint(tile_west)
-        print("West alt:")
+        print("bbtt West alt:")
         pprint(alt_west)
-        print("East:")
+        print("bbtt East:")
         pprint(tile_east)
-        print("East alt:")
+        print("bbtt East alt:")
         pprint(alt_east)
         # If one bbox is tigher than the other, this is a problem. Only take the furthest out one.
         minimum_zoom = min(zoom_west, zoom_east) - 1
         if zoom_west != zoom_east:
-            print("Mixed zoom found for bbox!")
-            print("bboxtt zoom:", zoom_west, zoom_east, minimum_zoom)
+            print("bbtt: Mixed zoom found for bbox!")
+            print("bbtt zoom:", zoom_west, zoom_east, minimum_zoom)
         # This may be the only fix, but it may need some edge case handling.
         # This is to avoid getting both bounding boxes showing tiles for the whole planet. Each tile should only be returned once.
         if minimum_zoom == 1:

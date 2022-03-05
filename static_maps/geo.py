@@ -451,3 +451,9 @@ def remap_split_bbox(bbox: BBoxT, tile_size: int) -> BBoxT:
         brx -= ts
     T = type(bbox)
     return T(left=tlx, top=tly, right=brx, bottom=bry)
+
+
+def center_area_to_bbox(center: LatLon, diameter: int):
+    """
+    Generates a bounding box given a center and a diameter (in km) of the area to cover.
+    """

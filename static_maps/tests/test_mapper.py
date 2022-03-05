@@ -447,9 +447,21 @@ class TestEbird:
             ("arcter", 512, False),
             ("dodo1", 512, True),
             ("pifgoo", 512, False),
+            ("norshr4", 512, False),
         ],
     )
     def test_map_final(self, species_code, size, no_data):
         res, res_no_data = self.ebird.make_map(species_code, self.mapbox, size)
         assert res_no_data == no_data
         res.save(f"final-ebird-{species_code}_{size}.png")
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "species_code, center, area, zoom",
+        [("amtspa", LatLon(49.098, -123.179), 50, 0)],
+    )
+    def test_map_area(self, species_code, center, area, zoom):
+        res, res_no_data = self.ebird.make_map(
+            species_code, self.mapbox, center=center, area=area, start_zoom=zoom
+        )
+        assert False

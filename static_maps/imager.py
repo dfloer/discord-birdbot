@@ -23,6 +23,7 @@ def new_getbbox(self: Any) -> "PixBbox":
     r = self._getbbox()
     print("new_getbbox - r:", r)
     return PixBbox(*r) if r is not None else r
+    print("~~~~~~~~~~~~~^^~~~~~~~~~~~~~~~")
 
 
 Image.Image.getbbox = new_getbbox
