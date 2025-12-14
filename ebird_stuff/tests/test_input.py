@@ -9,7 +9,7 @@ from ebird_stuff.ebird.input_parsing import ebird_taxonomy_parse as etp
 test_path = Path(__file__).parent / Path("test-files")
 # test_path = Path(cwd).joinpath(*[x for x in rest if x not in cwd])
 
-fn = test_path / Path("eBird_Taxonomy_v2021.csv")
+fn = test_path / Path("eBird_taxonomy_v2025.csv")
 csv_common, csv_scientific, csv_code, csv_short, csv_band = etp.taxonomy_parse(fn)
 api_common, api_scientific, api_code, api_short, api_band = etp.taxonomy_parse("")
 
@@ -19,7 +19,7 @@ csv_scientific_name_mappings = {k: v.scientific_code for k, v in csv_scientific.
 api_common_name_mappings = {k: v.short_codes for k, v in api_common.items()}
 api_scientific_name_mappings = {k: v.scientific_code for k, v in api_scientific.items()}
 
-csv_filename = test_path / Path("IBP-AOS-LIST21.csv")
+csv_filename = test_path / Path("IBP-AOS-list25.csv")
 banding_mapping = bcp.common_name_to_banding(csv_filename)
 downloader_banding_mapping = bcp.common_name_to_banding("")
 banding_mapping_all = bcp.common_name_to_banding(csv_filename, True)
@@ -71,8 +71,8 @@ def test_ebird(name, codes, input_data):
 @pytest.mark.parametrize(
     "name, code",
     [
-        ("Barn Owl", "BANO"),
-        ("Barred Owl", "BADO"),
+        ("American Barn Owl", "ABOW"),
+        ("Barred Owl", "BAOW"),
         ("Bank Swallow", "BANS"),
         ("Barn Swallow", "BARS"),
         ("Eurasian Collared-Dove", "EUCD"),
@@ -88,7 +88,7 @@ def test_banding_included(name, code, input_data):
 @pytest.mark.parametrize(
     "name",
     [
-        ("Western X Mountain Bluebird Hybrid"),
+        ("Hybrid Bluebird"),
         ("Slate-colored Junco"),
         ("Unidentified Swallow"),
         ("Cackling/Canada Goose"),
@@ -102,7 +102,7 @@ def test_banding_excluded(name, input_data):
 @pytest.mark.parametrize(
     "name",
     [
-        ("Western X Mountain Bluebird Hybrid"),
+        ("Hybrid Bluebird"),
         ("Slate-colored Junco"),
         ("Unidentified Swallow"),
         ("Cackling/Canada Goose"),
@@ -130,7 +130,7 @@ def test_banding_all(name):
         ("Stercorarius maccormicki", ["STMA"]),
         ("Stercorarius longicaudus", ["STLO"]),
         ("Streptopelia decaocto", ["STDE"]),
-        ("Calocitta colliei", ["CACO"]),
+        ("Cyanocorax colliei", ["CYCO"]),
         ("Fregetta tropica", ["FRTR"]),
         ("Setophaga virens", ["SEVI"]),
         ("Knipolegus aterrimus", ["KNAT"]),

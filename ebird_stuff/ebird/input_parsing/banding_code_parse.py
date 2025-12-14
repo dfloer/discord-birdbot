@@ -47,7 +47,7 @@ def download_csv():
 
 
 if __name__ == "__main__":
-    csv_filename = "IBP-AOS-LIST21.csv"
+    csv_filename = "IBP-AOS-list25.csv"
     banding_mapping = common_name_to_banding(csv_filename)
     with open("banding.json", "w") as f:
         json.dump(banding_mapping, f)
