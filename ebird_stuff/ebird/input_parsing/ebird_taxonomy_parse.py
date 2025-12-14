@@ -179,7 +179,7 @@ def normalize_to_ascii(s):
 
 
 if __name__ == "__main__":
-    fn = "eBird_Taxonomy_v2021.csv"
+    fn = "eBird_Taxonomy_v2025.csv"
     common, scientific, code, short, band = taxonomy_parse(fn)
 
     # Dump all the data with common names as the keys.
