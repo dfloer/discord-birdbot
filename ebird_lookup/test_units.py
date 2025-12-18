@@ -1,5 +1,5 @@
 import pytest
-from ebird_lookup import (
+from .ebird_lookup import (
     TypeSenseSearch,
     MeilisearchSearch,
     PopulateTaxonomyError,
@@ -151,6 +151,7 @@ def test_code_lookup(code, names, backend):
                 "Verreaux's Eagle-Owl",
                 "Verreaux's Coua",
                 "Verreaux's Eagle",
+                "Verreaux's Partridge",
             ],
         ),
         (
@@ -160,6 +161,7 @@ def test_code_lookup(code, names, backend):
                 "Verreaux's Eagle-Owl",
                 "Verreaux's Coua",
                 "Verreaux's Eagle",
+                "Verreaux's Partridge",
             ],
         ),
         ("St. Helena Rail", "St. Helena Rail"),

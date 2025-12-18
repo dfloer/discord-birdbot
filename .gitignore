@@ -1,3 +1,18 @@
+# Don't keep cached images
+output_cache/*
+api_cache/*
+
+# Don't include test image/audio output.
+test*.png
+final-*.png
+mapbox*.png
+*gbifmap*.png
+ebird*.png
+result_tat*.mp3
+
+# Don't store credentials.
+creds.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

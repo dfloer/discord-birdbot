@@ -2,17 +2,28 @@ from datetime import datetime
 from pprint import pprint
 
 import pytest
-import os
+from loguru import logger
 
 import ebird_stuff.ml.api as mlp
-from ebird_stuff.ml.session import get_nc, head_nc
+from ebird_stuff.ml.session import get_nc, head_nc, MLSession
+from requests_cache import CachedSession
 
 # Don't use caching  for the tests, as requests-cache and vcr.py con
 @pytest.fixture(scope="function", autouse=True)
 def no_cache(monkeypatch):
     monkeypatch.setattr("ebird_stuff.ml.api.get", get_nc)
     monkeypatch.setattr("ebird_stuff.ml.api.head", head_nc)
+    monkeypatch.setattr("ebird_stuff.ml.api.head", head_nc)
 
+
+class TestCookies:
+    session = MLSession(CachedSession(cache_name="api_cache", backend="memory"))
+
+    def test_get_cookie(self):
+        cookies = self.session._view_ml_cookie()
+        print(cookies)
+        assert len(cookies) >= 2  # This needs a better test.
+        assert "ml-search-session" in cookies.keys()
 
 class TestUrls:
     mls = mlp.Search()
@@ -34,34 +45,37 @@ class TestAsset:
         "asset_id, expected_results",
         [
             (
-                "307671311",
+                307671311,
                 {
                     "common_name": "Bushtit",
                     "asset_id": 307671311,
                     "sci_name": "Psaltriparus minimus",
                     "species_code": "bushti",
-                    "location": [
-                        "806 Coronado Ave, Fort Collins US-CO 40.53593, -105.09000",
-                        "Larimer, Colorado, United States",
-                    ],
-                    "coords": mlp.LatLon(lat=40.5359, lon=-105.09),
-                    "media_type": "Photo",
+                    "location_name": "806 Coronado Ave, Fort Collins US-CO 40.53593, -105.09000",
+                    "location_id": "L12535359",
+                    "coords": mlp.LatLon(lat=40.535934, lon=-105.089997),
+                    "media_type": "photo",
                     "observation_timestamp": "13 Feb 2021",
-                    "timestamp": datetime(2021, 2, 13, 0, 0),
+                    "timestamp": datetime(2021, 2, 13, 7, 46, 0),
                     "user_name": "Cree Bol",
-                    "checklist_id": 81111676,
-                    "preview_url": "https://cdn.download.ams.birds.cornell.edu/api/v1/asset/307671311/",
+                    "checklist_id": "S81111676",
+                    "preview_url": "https://cdn.download.ams.birds.cornell.edu/api/v2/asset/307671311/480",
                 },
             ),
         ],
     )
     def test_get_asset_meta(self, asset_id, expected_results):
-        test_asset = self.mls.search_asset(asset_id=asset_id)
+        test_result = self.mls.search_asset(asset_id=asset_id)
+
+        assert len(test_result) == 1
+        test_asset = test_result[0]
 
         assert test_asset.asset_id == asset_id
         assert test_asset.common_name == expected_results["common_name"]
         assert test_asset.sci_name == expected_results["sci_name"]
         assert test_asset.species_code == expected_results["species_code"]
+        assert test_asset.location_name == expected_results["location_name"]
+        assert test_asset.location_id == expected_results["location_id"]
         assert test_asset.coords == expected_results["coords"]
         assert test_asset.media_type == expected_results["media_type"]
         exp = expected_results["observation_timestamp"]
@@ -70,6 +84,53 @@ class TestAsset:
         assert test_asset.user_name == expected_results["user_name"]
         assert test_asset.checklist_id == expected_results["checklist_id"]
         assert test_asset.preview_url == expected_results["preview_url"]
+
+    @pytest.mark.vcr("new")
+    @pytest.mark.parametrize(
+        "asset_ids, expected_results",
+        [
+            (
+                [307671311, 617097779],
+                [
+                    {
+                        "common_name": "Bushtit",
+                        "asset_id": 307671311,
+                        "sci_name": "Psaltriparus minimus",
+                        "species_code": "bushti",
+                        "location_name": "806 Coronado Ave, Fort Collins US-CO 40.53593, -105.09000",
+                        "location_id": "L12535359",
+                        "coords": mlp.LatLon(lat=40.535934, lon=-105.089997),
+                        "media_type": "photo",
+                        "observation_timestamp": "13 Feb 2021",
+                        "timestamp": datetime(2021, 2, 13, 0, 0),
+                        "user_name": "Cree Bol",
+                        "checklist_id": "S81111676",
+                        "preview_url": "https://cdn.download.ams.birds.cornell.edu/api/v1/asset/307671311/",
+                    },
+                    {
+                        "common_name": "Bushtit",
+                        "asset_id": 617097779,
+                        "sci_name": "Psaltriparus minimus",
+                        "species_code": "bushti",
+                        "location_name": "Burnaby--Confederation Park (Dog Off Leash Area)",
+                        "location_id": "L28687415",
+                        "coords": mlp.LatLon(lat=49.2903858, lon=-122.9981404),
+                        "media_type": "photo",
+                        "observation_timestamp": "18 Mar 2024",
+                        "timestamp": datetime(2024, 3, 28, 0, 0),
+                        "user_name": "Rain Saulnier",
+                        "checklist_id": "S166345071",
+                        "preview_url": "https://cdn.download.ams.birds.cornell.edu/api/v1/asset/307671311/",
+                    },
+                ],
+            ),
+        ],
+    )
+    def test_get_multiple_asset_meta(self, asset_ids, expected_results):
+        test_result = self.mls.search_asset(asset_id=asset_ids)
+        assert len(test_result) == 2
+        assert test_result[0].asset_id in asset_ids
+        assert test_result[1].asset_id in asset_ids
 
     @pytest.mark.vcr("new")
     def test_no_result(self):
@@ -83,11 +144,13 @@ class TestAsset:
         with pytest.raises(mlp.Search.NoResults):
             test_asset = self.mls.search_asset(asset_id=123456)
 
-    @pytest.mark.vcr("new")
-    def test_audio_processing(self):
-        with pytest.raises(mlp.APIBase.MediaStillProcessing):
-            test_asset = self.mls.search_asset(asset_id=368985981)
-            _ = test_asset.media
+    # todo: Need to find some audio still processing to test with.
+    # Is audio that's being processed still returned by the API?
+    # @pytest.mark.vcr("new")
+    # def test_audio_processing(self):
+    #     with pytest.raises(mlp.APIBase.MediaStillProcessing):
+    #         test_asset = self.mls.search_asset(asset_id=368985981)
+    #         _ = test_asset.media
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
@@ -98,16 +161,17 @@ class TestAsset:
                 {"asset_id": 307671311, "meta_timestamp": datetime.now()},
             ),
             (
-                488784,
-                {"asset_id": 488784, "meta_timestamp": datetime.now()},
+                165706161,
+                {"asset_id": 165706161, "meta_timestamp": datetime.now()},
             ),
         ],
     )
     def test_get_metadata(self, asset_id, results):
-        test_asset = self.mls.search_asset(asset_id=asset_id)
+        res = self.mls.search_asset(asset_id=asset_id)
+        assert len(res) == 1
+        test_asset = res[0]
         assert test_asset.asset_id == results["asset_id"]
         pprint(test_asset.metadata)
-        # assert 488784 != asset_id
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
@@ -116,17 +180,19 @@ class TestAsset:
             (
                 307671311,
                 "jpeg",
-                177110,
+                1045219,
             ),
             (
-                272370221,
-                "mp3",
-                306782,
+                165706161,
+                "mpeg3",
+                1218816,
             ),
         ],
     )
     def test_get_media(self, asset_id, file_type, size):
-        test_asset = self.mls.search_asset(asset_id=asset_id)
+        res = self.mls.search_asset(asset_id=asset_id)
+        assert len(res) == 1
+        test_asset = res[0]
         pprint(test_asset.metadata)
         test_media = test_asset.media.read()
         # print(test_media, len(list(test_media)))
@@ -134,7 +200,6 @@ class TestAsset:
         assert len(list(test_media)) == size
         # print(test_asset)
         # print(test)
-        # assert False
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
@@ -151,14 +216,14 @@ class TestAsset:
                 datetime(2021, 2, 14, 21, 59, 42),
             ),
             (
-                "10 Sep 2021",
+                "2021-09-10T12:34:00",
                 "obs",
-                datetime(2021, 9, 10, 0, 0),
+                datetime(2021, 9, 10, 12, 34),
             ),
             (
-                "14 Feb 2021",
+                "2021-02-14T15:48:00",
                 "obs",
-                datetime(2021, 2, 14, 0, 0),
+                datetime(2021, 2, 14, 15, 48),
             ),
             (
                 "test",
@@ -187,17 +252,17 @@ class TestAsset:
             (
                 "https://macaulaylibrary.org/asset/307671311",
                 307671311,
-                "Photo",
+                "photo",
             ),
             (
                 "https://macaulaylibrary.org/asset/272370221",
                 272370221,
-                "Audio",
+                "audio",
             ),
             (
                 "https://macaulaylibrary.org/asset/201759561",
                 201759561,
-                "Video",
+                "video",
             ),
         ],
     )
@@ -211,29 +276,35 @@ class TestAsset:
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(
-        "asset_id, common_name, lazy_load",
+        "asset_id, common_name, location_id, location_name, lazy_load",
         [
+            # (
+            #     389309201,
+            #     None,
+            #     None,
+            #     None,
+            #     True,
+            # ),
             (
-                315200291,
-                None,
-                True,
-            ),
-            (
-                315200291,
-                "'Bushtit'",
+                389309201,
+                "'Bushtit (Pacific)'",
+                "'L12639133'",
+                "'Friendly Street neighborhood'",
                 False,
             ),
         ],
     )
     @pytest.mark.vcr("new")
-    def test_repr(self, asset_id, common_name, lazy_load):
+    def test_repr(self, asset_id, common_name, location_id, location_name, lazy_load):
         test_asset = mlp.Asset(asset_id, lazy_load=lazy_load)
-        print("metadata:")
+        ("metadata (test_repr):")
         pprint(test_asset.metadata)
         print(test_asset)
         r = repr(test_asset)
-        assert "asset_id=315200291, " in r
+        assert f"asset_id={asset_id}, " in r
         assert f"common_name={common_name}, " in r
+        assert f"location_id={location_id}, " in r
+        assert f"location_name={location_name}, " in r
 
     @pytest.mark.vcr("new")
     @pytest.mark.parametrize(

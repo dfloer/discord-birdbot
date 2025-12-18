@@ -8,7 +8,7 @@ sys.path.append(os.getcwd())
 
 from ebird_lookup import ebird_lookup as ebl
 from ebird_stuff.ml import api as mlp
-from ebird_stuff import transcode
+from transcoder import transcoder as transcode
 
 from loguru import logger
 
@@ -36,6 +36,8 @@ class LookupCog(commands.Cog):
             print("r:", r)
             if r["names"]:
                 res = f"{arg.upper()} -> {', '.join(r['names'])}"
+            else:
+                res = "No mapping found."
         except Exception:
             res = "Error: lookup failed."
         logger.info(f"lookupcog: find_name: arg: {arg}, backend: {backend}, result: {res}")
@@ -59,19 +61,20 @@ class LookupCog(commands.Cog):
 
     def ml_asset_preview(self, url):
         logger.info(f"lookupcog: ml_asset_preview: input url: {url}")
-        base_url = "https://cdn.download.ams.birds.cornell.edu/api/v1/asset/"
+        base_url = "https://cdn.download.ams.birds.cornell.edu/api/v2/asset/"
         # res = mlp.ml_assets_url_meta_filtered(url)
         # print(res)
         asset_id = mlp.get_asset_id(url)
         if asset_id is None:
             return discord.Embed(title="Error:", description="ML lookup failed, mis-formed URL?", color=0xFF0000), None, None
         try:
-            res = self.ml_search.search_asset(asset_id=asset_id)
+            res = self.ml_search.search_asset(asset_id=asset_id)[0]
         except mlp.Search.NoResults:
             return discord.Embed(title="Error:", description=f"ML{asset_id} lookup failed. Are you sure it exists?", color=0xFF0000), None, None
         if res is None:
             return discord.Embed(title="Error:", description=f"ML{asset_id} lookup failed.", color=0xFF0000), None, None
-        media_url = res.metadata["mediaUrl"]
+        
+        media_url = res.media_url
         obs_ts = res.observation_timestamp
         prev = res.preview_url
         media_type = res.media_type
@@ -81,9 +84,9 @@ class LookupCog(commands.Cog):
         ml_url = f"https://macaulaylibrary.org/asset/{res.asset_id}"
 
         audio_file = None
-        if media_type == "Photo":
+        if media_type == "photo":
             colour = 0x007F00
-        elif media_type == "Audio":
+        elif media_type == "audio":
             media_url = res.media_url
             media_size = res.media_size
             max_size = int(self.file_limits[0] * self.file_safety_factor)
@@ -101,7 +104,7 @@ class LookupCog(commands.Cog):
             audio_file = discord.File(output.data, filename=f"ML{asset_id}.mp3")
             media_extra = f"debug: {output.elapsed}s, in: {in_size}B, out: {output.size}B."
             colour = 0x007F7F
-        elif media_type == "Video":
+        elif media_type == "video":
             # ML currently says file extensions can be MOV, MP4 and M4V.
             # This has not been tested with MOV of M4V files, but it should work.
             ext = [x for x in ('mov', "mp4", "m4v") if x in media_url.lower()]
@@ -115,14 +118,14 @@ class LookupCog(commands.Cog):
 
         species_info = f"{res.common_name} (_{res.sci_name}_)"
         ml_id = f"ML{res.asset_id}"
-        media_metadata = f"**{res.user_name}** at **{res.location[1]}** on **{obs_ts}**."
+        media_metadata = f"**{res.user_name}** at **{res.location_name}** on **{obs_ts}**."
         desc = f"{species_info}\n{media_metadata}\n{media_extra}"
         embed = discord.Embed(title=ml_id, url=ml_url, description=desc, color=colour)
-        if media_type == "Photo":
+        if media_type == "photo":
             embed.set_image(url=prev)
-        elif media_type == "Audio":
+        elif media_type == "audio":
             embed.set_image(url=prev)
-        elif media_type == "Video":
+        elif media_type == "video":
             pass
         return embed, video_url, audio_file
 

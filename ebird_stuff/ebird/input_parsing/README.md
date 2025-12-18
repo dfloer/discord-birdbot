@@ -4,7 +4,7 @@
   
   For parsing the eBird taxonomy CSV obtained from <http://www.birds.cornell.edu/clementschecklist/download/> into common/scientific names and their 4-letter-codes to allow mapping between 4-letter codes and the common, not scientific, name. Outputs mappings in json format to `common.json`, which includes the common name to all 4-letter-codes including the scientific/binomial mapping.
 
- Currently tested with the 2021 eBird taxonomy (not Clements or combined).
+ Currently tested with the 2025 eBird taxonomy (not Clements or combined).
 
  Uses the rules as given at <https://help.ebird.org/customer/portal/articles/2667298-quick-entry-code-methodology> with some additional behaviour for edge-cases the rules don't include.
 

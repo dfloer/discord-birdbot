@@ -2,7 +2,8 @@ from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Dict, List, NamedTuple, TypedDict, Union, Optional
+from typing import Dict, List, NamedTuple, TypedDict, Union, Optional, Any
+from loguru import logger
 
 # import requests
 from requests.utils import urlparse as req_urlparse
@@ -29,11 +30,11 @@ class APIBase:
 @dataclass
 class Search(APIBase):
     base_url: str = field(
-        default="https://search.macaulaylibrary.org/catalog.json", init=False
+        default="https://search.macaulaylibrary.org/api/v2/search", init=False
     )
     asset_url: str = field(default="https://macaulaylibrary.org/asset/", init=False)
     download_url: str = field(
-        default="https://cdn.download.ams.birds.cornell.edu/api/v1/asset/", init=False
+        default="https://cdn.download.ams.birds.cornell.edu/api/v2/asset/", init=False
     )
     checklist_url: str = field(default="https://ebird.org/view/checklist/", init=False)
 
@@ -49,7 +50,7 @@ class Search(APIBase):
         """
         if len(name) < 3:
             return None
-        url = f"https://search.macaulaylibrary.org/api/v1/find/user?fullName={name}"
+        url = f"https://search.macaulaylibrary.org/api/v2/find/user?restrictTo=hasMedia&q={name}"
         res = get.json(url)
         if res is None:
             return None
@@ -62,7 +63,7 @@ class Search(APIBase):
         Perform a search against the ML API. This is currently a stub that performs no validation.
 
         Available search parameters:
-        'searchField': what field to search on. Not sure how impoertant this is.
+        'searchField': what field to search on. Not sure how important this is.
             species = species, animals = animals, region = region, hotspot = hotspot, user = user.
         'q': taxon code display/full name.
             xxxxxxn = taxon code.
@@ -113,8 +114,8 @@ class Search(APIBase):
         'cap': captive birds
             no = no, y = yes, all = both
         'subId': eBird checklist number, form is Snnnnnnnn
-        'catId': catalog number.
-            xxxxxxxx or xxxxxxxx, yyyyyyyy, ..., zzzzzzzz No ML prefix.
+        'assetId': ML catalog ID. Pass multiple values as a list.
+            xxxxxxxx or [xxxxxxxx, yyyyyyyy, ..., zzzzzzzz]
         '_spec' or 'spec': Was a specimen collected? Only valid for audio, it seems.
             true/on = yes
         'specId': specimen id
@@ -151,17 +152,18 @@ class Search(APIBase):
         'initialCursorMark': where in the search results to start.
             Don't set this directly, only use it for pagination. Will be in the result from a previous search.
         """
-        return get(self.base_url, params=params)
-
+        return get(self.base_url, **params)
+    
     def search(self, **params: dict) -> dict:
+        logger.info(params)
         return self._search(**params).json()
 
-    def search_with_headers(self, **params: dict) -> dict:
+    def search_with_headers(self, **params: dict) -> tuple[dict[Any, Any]]:
         res = self._search(**params)
         return res.json(), res.headers
 
     def taxon_media_stats(self, species_code):
-        url = f"https://search.macaulaylibrary.org/api/v1/stats/media-count?taxonCode={species_code}"
+        url = f"https://search.macaulaylibrary.org/api/v2/stats/media-count?taxonCode={species_code}"
         return get(url).json()
 
     def get_taxon_assets(
@@ -189,20 +191,22 @@ class Search(APIBase):
         assets = [Asset(x["catId"], x) for x in search_results["results"]["content"]]
         return assets
 
-    def search_asset(self, asset_id: str) -> "Asset":
-        metadata = self.search(catId=asset_id, cap="all")
-        metadata = metadata["results"]["content"]
+    def search_asset(self, asset_id: str | int | list[str | int]) -> list["Asset"]:
+        params = {"assetId": asset_id}
+        metadata = self.search(params=params)
         if len(metadata) == 0:
             raise self.NoResults
-        assert len(metadata) == 1
-        na = Asset(asset_id)
-        na.metadata = metadata[0]
-        self.meta_timestamp = datetime.now(timezone.utc)
-        return na
+        results = []
+        logger.info(metadata)
+        for asset in metadata:
+            na = Asset(int(asset["assetId"]))
+            na.metadata = asset
+            results += [na]
+            na.meta_timestamp = datetime.now(timezone.utc)
+        return results
 
     class NoResults(Exception):
         pass
-
 
 @dataclass
 class Asset(APIBase):
@@ -221,13 +225,15 @@ class Asset(APIBase):
 
     asset_id: int
     metadata: dict = field(repr=False, default_factory=dict)
-    media_timestamp: datetime = field(init=False, default=None)
-    meta_timestamp: datetime = field(init=False, default=None)
+    media_timestamp: datetime = field(init=False)
+    meta_timestamp: datetime = field(init=False)
     lazy_load: bool = True
 
-    _file_type: dict = field(init=False, repr=False, default=None)
-    _media: BytesIO = field(init=False, repr=False, default=None)
-    _media_size: int = field(init=False, repr=False, default=None)
+    _file_type: dict | None = field(init=False, repr=False, default=None)
+    _media: BytesIO | None = field(init=False, repr=False, default=None)
+    _media_size: int | None = field(init=False, repr=False, default=None)
+    _base_url: str = field(default="https://cdn.download.ams.birds.cornell.edu/api/v2/asset/")
+    _url_sizes: dict[str,int] = field(default_factory=lambda: ({"full": 2400, "preview": 480}))
 
     # logger: 'loguru.logger' = field(default=logger, init=False, repr=False)
 
@@ -239,14 +245,14 @@ class Asset(APIBase):
     @property
     def asset_url(self):
         """The asset URL for this asset."""
-        return f"{self.asset_url}{self.asset_id}"
+        return f"{self._base_url}{self.asset_id}"
 
-    @property
-    def file_url(self):
-        """The direct URL to the media file for this asset."""
-        if not self._file_type:
-            self._get_media_metadata()
-        return f"{self.download_url}{self.asset_id}.{self._file_type}"
+    # @property
+    # def file_url(self):
+    #     """The direct URL to the media file for this asset."""
+    #     if not self._file_type:
+    #         self._get_media_metadata()
+    #     return f"{self.download_url}{self.asset_id}.{self._file_type}"
 
     @property
     def media(self) -> BytesIO:
@@ -257,30 +263,45 @@ class Asset(APIBase):
         return self._media
 
     @property
+    def taxonomy(self) -> dict[str, str]:
+        """Gets the taxonomy from the asset."""
+        return self._get_property(["taxonomy"])
+
+    @property
     def common_name(self) -> str:
         """The common name for the species in the asset."""
-        return self._get_property(["commonName"])
+        return self.taxonomy["comName"]
 
     @property
     def sci_name(self) -> str:
         """The scientific name for the species in the asset."""
-        return self._get_property(["sciName"])
+        return self.taxonomy["sciName"]
 
     @property
     def species_code(self) -> str:
         """The ebird species code the species in the asset."""
-        return self._get_property(["speciesCode"])
+        return self.taxonomy["speciesCode"]
 
     @property
     def location(self) -> List[str]:
-        """The ebird hotspots's name for the species in the asset."""
-        return self._get_property(["locationLine1", "locationLine2"])
+        """The ebird hotspots's data."""
+        return self._get_property(["location"])
 
     @property
     def coords(self) -> LatLon:
         """The ebird hotspots's latitude and longitude for the species in the asset."""
-        lat, lon = self._get_property(["latitude", "longitude"])
+        lat = self.location["latitude"]
+        lon = self.location["longitude"]
         return LatLon(lat, lon)
+    
+    @property
+    def location_name(self) -> str:
+        """The ebird hotspot's location name."""
+        return self.location["name"]
+    
+    @property
+    def location_id(self) -> str:
+        return self.location["locId"]
 
     @property
     def media_type(self) -> str:
@@ -290,13 +311,18 @@ class Asset(APIBase):
     @property
     def observation_timestamp(self) -> str:
         """The timestamp of when the asset was added to ML, as the source string."""
-        return self._get_property(["obsDttm"])
+        return self._get_property(["obsDtDisplay"])
 
     @property
     def timestamp(self) -> datetime:
         """The timestamp of when the asset was added to ML, as a datetime object."""
-        ts = self._get_property(["obsDttm"])
+        ts = self._get_property(["obsDt"])
         return self._ts_to_dt(ts, "obs")
+    
+    @property
+    def user_id(self) -> str:
+        """The ebird user id of the submitter of the asset.."""
+        return self._get_property(["userId"])
 
     @property
     def user_name(self) -> str:
@@ -306,17 +332,28 @@ class Asset(APIBase):
     @property
     def checklist_id(self) -> int:
         """The ebird checklist ID related to the asset, without the leading S."""
-        return int(self._get_property(["eBirdChecklistId"]).replace("S", ""))
+        return self._get_property(["ebirdChecklistId"])
 
     @property
     def preview_url(self) -> str:
         """The asset's media preview url."""
-        return self._get_property(["previewUrl"])
+        return self.get_media_url("preview")
 
     @property
     def media_url(self) -> str:
         """The asset's media url."""
-        return self._get_property(["mediaUrl"])
+        return self.get_media_url("full")
+    
+    def get_media_url(self, size: str="preview") -> str:
+        if self.media_type == "photo":
+            s = self._url_sizes.get(size, 1200)
+        elif self.media_type == "audio":
+            s = "mp3"
+        elif self.media_type == "video":
+            size = 1280  # todo: hardcoding
+            video_type = "mp4"  # todo: check and see if other values are valid?
+            s = f"{video_type}/{size}"
+        return f"{self._base_url}{self.asset_id}/{s}"
 
     @property
     def media_size(self) -> int:
@@ -324,6 +361,14 @@ class Asset(APIBase):
         if self._media_size is None:
             self._get_media_metadata()
         return self._media_size
+    
+    @property
+    def rating_count(self) -> int:
+        return self._get_property(["ratingCount"])
+    
+    @property
+    def rating(self) -> int:
+        return self._get_property(["rating"])
 
     def _get_property(
         self, properties: List[str], is_repr: bool = False
@@ -354,11 +399,14 @@ class Asset(APIBase):
         """
         # self.logger.debug("Loading metadata...")
         if not self.metadata:
-            # self.logger.debug("No metadata already")
             s = Search()
-            metadata = s.search(catId=self.asset_id)["results"]["content"]
+            params = {"assetId": self.asset_id}
+            metadata = s.search(params=params)
+            if len(metadata) == 0:
+                raise s.NoResults
             assert len(metadata) == 1
-            self.metadata = metadata[0]
+            res = metadata[0]  # A single asset should only have one result.
+            self.metadata = res
             self.meta_timestamp = datetime.now(timezone.utc)
 
     def _get_media_metadata(self, headers: Dict[str, str] = {}) -> None:
@@ -381,6 +429,9 @@ class Asset(APIBase):
         if self.media_type == "Audio":
             # ML appears to transcode everything to MP3.
             self._file_type = "mp3"
+        elif self.media_type == "video":
+            self._file_type = "mp4"
+            # ML appears to transcode everything to MP$.
         self.meta_timestamp = datetime.now(timezone.utc)
         self._media_size = int(headers.get("content-length", 0))
 
@@ -398,7 +449,7 @@ class Asset(APIBase):
         if mode == "headers":
             time_format = "%a, %d %b %Y %H:%M:%S %Z"
         elif mode == "obs":
-            time_format = "%d %b %Y"
+            time_format = "%Y-%m-%dT%H:%M:%S"
         else:
             raise ValueError(f"Mode {mode} not supported.")
         return datetime.strptime(timestring, time_format)
@@ -408,7 +459,10 @@ class Asset(APIBase):
         Downloads the media, or none if an error occurred.
         """
         url = self.media_url
+        print(self.media_url)
         res = get(url)
+        print(res)
+        print(res.url)
 
         # ML uses 476 to denote is still loading.
         if res.status_code == 476:
@@ -432,30 +486,59 @@ class Asset(APIBase):
         """
         return len(self._media.getvalue())
 
+    # def __repr__(self) -> str:
+    #     keys = {
+    #         "commonName": "common_name",
+    #         "sciName": "scientific_name",
+    #         "speciesCode": "species_code",
+    #         "mediaType": "media_type",
+    #         "obsDttm": "observation_timestampe",
+    #         "userDisplayName": "user_name",
+    #         "coords": "coords",
+    #     }
+    #     attribs = {}
+    #     for k in keys:
+    #         if k == "coords":
+    #             lat, lon = self._get_property(["latitude", "longitude"], True)
+    #             attribs[k] = f"{LatLon(lat, lon)}"
+    #         v = self._get_property([k], True)
+    #     attribs["location_id"] = self.location_id
+    #     attribs["location_name"] = self.location_name
+    #     attribs = {k: v f"'{v}'" if isinstance(v, str) else f"{v}" 
+    #     s = ", ".join([f"{keys[k]}={v}" for k, v in attribs.items()])
+    #     return f"Asset(asset_id={self.asset_id}, {s})"
     def __repr__(self) -> str:
-        keys = {
-            "commonName": "common_name",
-            "sciName": "scientific_name",
-            "speciesCode": "species_code",
-            "location": "location",
-            "mediaType": "media_type",
-            "obsDttm": "observation_timestampe",
-            "userDisplayName": "user_name",
-            "coords": "coords",
-        }
         attribs = {}
-        for k in keys:
-            if k == "coords":
-                lat, lon = self._get_property(["latitude", "longitude"], True)
-                attribs[k] = f"{LatLon(lat, lon)}"
-            if k == "location":
-                attribs[
-                    k
-                ] = f"{self._get_property(['locationLine1', 'locationLine2'], True)}"
-            v = self._get_property([k], True)
+        prop_list = [
+            "asset_url",
+            "common_name",
+            "sci_name",
+            "species_code",
+            "location",
+            "coords",
+            "location_name",
+            "location_id",
+            "media_type",
+            "observation_timestamp",
+            "timestamp",
+            "user_id",
+            "user_name",
+            "checklist_id",
+            "preview_url",
+            "media_url",
+            "media_size",
+            "rating_count",
+            "rating",
+        ]
+        for k in prop_list:
+            v = getattr(self, k)
             attribs[k] = f"'{v}'" if isinstance(v, str) else f"{v}"
-        s = ", ".join([f"{keys[k]}={v}" for k, v in attribs.items()])
+        s = ", ".join([f"{k}={v}" for k, v in attribs.items()])
         return f"Asset(asset_id={self.asset_id}, {s})"
+
+
+
+
 
 
 def asset_from_url(url: str, lazy_load: bool = True) -> "Asset":
